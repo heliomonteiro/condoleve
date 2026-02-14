@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Estilos globais extras */
+body {
+    background-color: #f8fafc; /* slate-50 */
+}
+@media print {
+    body { background-color: white; }
+}
