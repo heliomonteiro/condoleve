@@ -6,13 +6,13 @@ import {
   PieChart, PlusCircle, TrendingUp, TrendingDown, Printer, Users,
   AlertTriangle, Clock, History, X, Copy,
   Database, Upload, Cloud, Lock, Unlock, 
-  Key, Megaphone, Wrench, Hammer, Star, Check, BarChart3, ArrowRight, Pencil, Smartphone, Sparkles, ListPlus, Eye, CalendarDays, Link as LinkIcon, Save, RefreshCw, WifiOff
+  Key, Megaphone, Wrench, Hammer, Star, Check, BarChart3, ArrowRight, Pencil, Smartphone, Sparkles, ListPlus, Eye, CalendarDays, Link as LinkIcon, Save, RefreshCw, WifiOff, LogOut, Mail
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO SUPABASE ---
 const SUPABASE_URL = "https://jtoubtxumtfwrolxrbpf.supabase.co"; 
 const SUPABASE_KEY = "sb_publishable_jRaZSrBV1Q75Ftj7OVd_Jg_tozzOju3"; 
-const APP_VERSION = "3.0.0-cloud";
+const APP_VERSION = "3.1.0-auth";
 
 // --- UTILITÁRIOS SEGUROS ---
 const safeStr = (val) => val ? String(val) : "";
@@ -21,11 +21,9 @@ const safeNum = (val) => Number(val) || 0;
 const copiarTextoSeguro = (texto) => {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(texto)
-      .then(() => alert("Texto copiado para a área de transferência!"))
+      .then(() => alert("Texto copiado!"))
       .catch(() => copiarTextoFallback(texto));
-  } else {
-    copiarTextoFallback(texto);
-  }
+  } else { copiarTextoFallback(texto); }
 };
 
 const copiarTextoFallback = (texto) => {
@@ -38,9 +36,7 @@ const copiarTextoFallback = (texto) => {
   alert("Texto copiado!");
 };
 
-const formatarMoeda = (val) => {
-  return safeNum(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-};
+const formatarMoeda = (val) => safeNum(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 // --- COMPONENTES VISUAIS ---
 const Logo = ({ className = "", dark = false }) => (
@@ -58,15 +54,13 @@ const Logo = ({ className = "", dark = false }) => (
         <span className={`font-black text-2xl tracking-tighter ${dark ? 'text-white' : 'text-[#1e293b]'}`}>
         Condo<span className="text-[#84cc16]">Leve</span>
         </span>
-        <span className={`text-[8px] uppercase font-bold tracking-[0.2em] ${dark ? 'text-blue-200' : 'text-slate-400'}`}>Cloud v3.0</span>
+        <span className={`text-[8px] uppercase font-bold tracking-[0.2em] ${dark ? 'text-blue-200' : 'text-slate-400'}`}>Cloud v3.1</span>
     </div>
   </div>
 );
 
 const Card = ({ children, className = "" }) => (
-  <div className={`bg-white rounded-2xl shadow-sm border border-slate-100 ${className}`}>
-    {children}
-  </div>
+  <div className={`bg-white rounded-2xl shadow-sm border border-slate-100 ${className}`}>{children}</div>
 );
 
 const Badge = ({ children, color = "slate" }) => {
@@ -86,71 +80,99 @@ const Badge = ({ children, color = "slate" }) => {
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const CATEGORIAS_DESPESA = ['Água', 'Luz', 'Limpeza', 'Manutenção', 'Jardinagem', 'Administrativo', 'Outros'];
 
+// --- APP PRINCIPAL COM AUTH ---
 export default function App() {
-  const [supabaseClient, setSupabaseClient] = useState(null);
+  const [supabase, setSupabase] = useState(null);
+  const [session, setSession] = useState(null);
   const [libLoaded, setLibLoaded] = useState(false);
 
-  // Carrega a biblioteca do Supabase via Script Tag (CDN)
-  // Isso garante funcionamento tanto no ambiente local quanto no editor web sem conflitos de import
+  // Carrega Supabase via CDN
   useEffect(() => {
-    if (window.supabase) {
-      setLibLoaded(true);
-      return;
-    }
-
+    if (window.supabase) { setLibLoaded(true); return; }
     const script = document.createElement('script');
     script.src = "https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js";
     script.async = true;
-    script.onload = () => {
-      console.log("Supabase Lib Loaded via CDN");
-      setLibLoaded(true);
-    };
-    script.onerror = () => alert("Erro ao carregar biblioteca do Supabase. Verifique sua conexão.");
+    script.onload = () => setLibLoaded(true);
     document.body.appendChild(script);
   }, []);
 
-  // Inicializa o cliente assim que a lib carregar
+  // Inicializa Cliente e Ouve Sessão
   useEffect(() => {
-    if (libLoaded && !supabaseClient && SUPABASE_URL.includes("http")) {
-      try {
-        const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        setSupabaseClient(client);
-      } catch (e) {
-        console.error("Erro ao criar cliente Supabase:", e);
-      }
+    if (libLoaded && !supabase && SUPABASE_URL.includes("http")) {
+      const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      setSupabase(client);
+      
+      client.auth.getSession().then(({ data: { session } }) => setSession(session));
+      const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => setSession(session));
+      return () => subscription.unsubscribe();
     }
   }, [libLoaded]);
 
-  // Tela de carregamento da lib
-  if (!libLoaded) {
-      return (
-          <div className="min-h-screen flex items-center justify-center bg-slate-50 flex-col">
-             <div className="animate-spin text-[#84cc16] mb-4"><RefreshCw size={40}/></div>
-             <p className="font-black text-[#1e293b]">Carregando Módulos...</p>
-          </div>
-      );
-  }
+  if (!libLoaded) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><RefreshCw className="animate-spin text-[#84cc16]"/></div>;
 
-  // Se a configuração estiver vazia, avisa
-  if (!SUPABASE_URL.includes("http")) {
-      return (
-          <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-slate-50 text-center font-sans">
-              <Logo className="mb-8 scale-150"/>
-              <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md border border-red-100">
-                  <h1 className="text-2xl font-black text-red-500 mb-4">Configuração Pendente</h1>
-                  <p className="text-slate-600 mb-6">Insira a URL e a Chave do Supabase no código.</p>
-              </div>
-          </div>
-      );
-  }
-
-  return <SistemaCondominio supabase={supabaseClient} />;
+  // Se não tem sessão, mostra Login. Se tem, mostra Sistema.
+  return !session ? <TelaLogin supabase={supabase} /> : <SistemaCondominio supabase={supabase} session={session} />;
 }
 
-function SistemaCondominio({ supabase }) {
+// --- TELA DE LOGIN ---
+function TelaLogin({ supabase }) {
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [modoCadastro, setModoCadastro] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true); setMsg(null);
+    try {
+      const { error } = modoCadastro 
+        ? await supabase.auth.signUp({ email, password: senha })
+        : await supabase.auth.signInWithPassword({ email, password: senha });
+      
+      if (error) throw error;
+      if (modoCadastro) setMsg({tipo: 'success', text: 'Conta criada! Verifique seu e-mail para confirmar.'});
+    } catch (error) {
+      setMsg({tipo: 'error', text: error.message || "Erro de autenticação"});
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+       <div className="bg-white p-8 rounded-[40px] shadow-2xl w-full max-w-sm text-center">
+          <Logo className="justify-center mb-8 scale-110" />
+          <h2 className="text-2xl font-black text-[#1e293b] mb-2">{modoCadastro ? 'Criar Conta' : 'Bem-vindo'}</h2>
+          <p className="text-slate-400 text-xs font-medium mb-8">Gerencie seu condomínio de forma simples.</p>
+          
+          {msg && <div className={`p-4 rounded-xl text-xs font-bold mb-6 ${msg.tipo === 'error' ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-600'}`}>{msg.text}</div>}
+
+          <form onSubmit={handleLogin} className="space-y-4 text-left">
+             <div>
+               <label className="text-[10px] font-black uppercase text-slate-400 ml-2">E-mail</label>
+               <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold text-sm outline-none focus:border-[#84cc16] transition"/>
+             </div>
+             <div>
+               <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Senha</label>
+               <input type="password" required value={senha} onChange={e=>setSenha(e.target.value)} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold text-sm outline-none focus:border-[#84cc16] transition"/>
+             </div>
+             <button disabled={loading} className="w-full bg-[#1e293b] text-white py-4 rounded-2xl font-black shadow-xl hover:bg-black transition active:scale-95 disabled:opacity-50">
+                {loading ? <RefreshCw className="animate-spin mx-auto"/> : (modoCadastro ? 'CADASTRAR' : 'ENTRAR')}
+             </button>
+          </form>
+
+          <button onClick={() => {setModoCadastro(!modoCadastro); setMsg(null);}} className="mt-6 text-xs font-bold text-slate-400 hover:text-[#84cc16] transition">
+             {modoCadastro ? 'Já tenho conta' : 'Criar uma conta nova'}
+          </button>
+       </div>
+    </div>
+  );
+}
+
+// --- SISTEMA PRINCIPAL ---
+function SistemaCondominio({ supabase, session }) {
   const [loading, setLoading] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState('receitas');
-  const [statusSync, setStatusSync] = useState('idle'); // idle, saving, saved, error
+  const [statusSync, setStatusSync] = useState('idle'); 
   
   // -- ESTADOS --
   const [unidades, setUnidades] = useState([]);
@@ -163,13 +185,14 @@ function SistemaCondominio({ supabase }) {
 
   const timeoutRef = useRef(null);
 
-  // --- CARREGAMENTO INICIAL (SUPABASE) ---
+  // --- CARREGAMENTO INICIAL (SUPABASE RLS) ---
   useEffect(() => {
       async function carregarDados() {
-          if (!supabase) return;
+          if (!supabase || !session) return;
           setLoading(true);
           try {
-              const { data, error } = await supabase.from('condoleve_dados').select('*');
+              // RLS Garante que só vem dados do user_id logado
+              const { data, error } = await supabase.from('app_dados').select('*');
               if (error) throw error;
               
               if (data) {
@@ -183,48 +206,40 @@ function SistemaCondominio({ supabase }) {
                   if (p) setPatrimonio(p.valor);
                   if (c) setConfig(c.valor);
               }
-          } catch (e) {
-              console.error("Erro ao carregar:", e);
-          } finally {
-              setLoading(false);
-          }
+          } catch (e) { console.error("Erro ao carregar:", e); } finally { setLoading(false); }
       }
       carregarDados();
-  }, [supabase]);
+  }, [supabase, session]);
 
-  // --- SALVAMENTO AUTOMÁTICO (SUPABASE) ---
-  const salvarDados = async (novasUnidades, novasDespesas, novoPatrimonio, novaConfig) => {
-      if (!supabase) return;
+  // --- SALVAMENTO AUTOMÁTICO ---
+  const salvarDados = async () => {
+      if (!supabase || !session) return;
       setStatusSync('saving');
       try {
           const updates = [
-              { chave: 'condo_u', valor: novasUnidades },
-              { chave: 'condo_d', valor: novasDespesas },
-              { chave: 'condo_p', valor: novoPatrimonio },
-              { chave: 'condo_c', valor: novaConfig }
+              { chave: 'condo_u', valor: unidades, user_id: session.user.id },
+              { chave: 'condo_d', valor: despesas, user_id: session.user.id },
+              { chave: 'condo_p', valor: patrimonio, user_id: session.user.id },
+              { chave: 'condo_c', valor: config, user_id: session.user.id }
           ];
 
-          const { error } = await supabase.from('condoleve_dados').upsert(updates);
+          // Upsert com unique key (user_id, chave)
+          const { error } = await supabase.from('app_dados').upsert(updates, { onConflict: 'user_id, chave' });
           if (error) throw error;
           
           setStatusSync('saved');
           setTimeout(() => setStatusSync('idle'), 2000);
-      } catch (e) {
-          console.error("Erro ao salvar:", e);
-          setStatusSync('error');
-      }
+      } catch (e) { console.error("Erro ao salvar:", e); setStatusSync('error'); }
   };
 
   const agendarSalvamento = () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => {
-          salvarDados(unidades, despesas, patrimonio, config);
-      }, 1000);
+      timeoutRef.current = setTimeout(salvarDados, 1000);
   };
 
   useEffect(() => { if(!loading) agendarSalvamento(); }, [unidades, despesas, patrimonio, config]);
 
-  // MODAIS
+  // Modais e Helpers (Lógica de Negócio Mantida)
   const [modalPagamento, setModalPagamento] = useState(null);
   const [modalDetalhesUnidade, setModalDetalhesUnidade] = useState(null); 
   const [modalDetalhesInad, setModalDetalhesInad] = useState(null); 
@@ -240,71 +255,43 @@ function SistemaCondominio({ supabase }) {
   const [showWizard, setShowWizard] = useState(false); 
 
   useEffect(() => {
-      if (!loading && unidades.length === 0 && despesas.length === 0) {
-          setShowWizard(true);
-      }
+      if (!loading && unidades.length === 0 && despesas.length === 0) setShowWizard(true);
   }, [loading, unidades, despesas]);
 
   const chaveAtual = `${mesAtual}-${anoAtual}`;
-
-  // --- LOGICA AUXILIAR ---
-  const getPagamentosMes = (unidade, chave) => {
-    const dados = unidade.status ? unidade.status[chave] : null;
-    if (!dados) return [];
-    if (Array.isArray(dados)) return dados;
-    return [dados]; 
-  };
-
-  const calcularTotalPago = (pagamentos) => {
-    return pagamentos.reduce((acc, p) => acc + safeNum(p.valor), 0);
-  };
+  const getPagamentosMes = (unidade, chave) => { const dados = unidade.status ? unidade.status[chave] : null; return dados ? (Array.isArray(dados) ? dados : [dados]) : []; };
+  const calcularTotalPago = (pagamentos) => pagamentos.reduce((acc, p) => acc + safeNum(p.valor), 0);
 
   const adicionarPagamento = (unidadeId, valor, data) => {
     setUnidades(prev => prev.map(u => {
         if (u.id !== unidadeId) return u;
         const currentPags = getPagamentosMes(u, chaveAtual);
-        const novoPag = { id: Date.now(), valor, data };
-        return {
-            ...u,
-            status: {
-                ...(u.status || {}),
-                [chaveAtual]: [...currentPags, novoPag]
-            }
-        };
+        return { ...u, status: { ...(u.status || {}), [chaveAtual]: [...currentPags, { id: Date.now(), valor, data }] } };
     }));
   };
 
   const removerPagamento = (unidadeId, pagamentoId, chave) => {
       setUnidades(prev => prev.map(u => {
           if(u.id !== unidadeId) return u;
-          const currentPags = getPagamentosMes(u, chave);
-          const newPags = currentPags.filter(p => p.id !== pagamentoId);
+          const newPags = getPagamentosMes(u, chave).filter(p => p.id !== pagamentoId);
           const novoStatus = { ...(u.status || {}) };
-          if (newPags.length === 0) {
-              delete novoStatus[chave];
-          } else {
-              novoStatus[chave] = newPags;
-          }
+          if (newPags.length === 0) delete novoStatus[chave]; else novoStatus[chave] = newPags;
           return { ...u, status: novoStatus };
       }));
   };
 
-  // --- FUNÇÕES GERAIS ---
-  
   const exportarBackup = () => {
     const nomeArquivo = `Backup_CondoLeve_${new Date().toISOString().slice(0,10)}.json`;
     const dados = { unidades, despesas, patrimonio, config, versao: APP_VERSION };
-    const blob = new Blob([JSON.stringify(dados)], { type: 'application/json' });
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
+    link.href = URL.createObjectURL(new Blob([JSON.stringify(dados)], { type: 'application/json' }));
     link.download = nomeArquivo;
     link.click();
     alert("Backup manual salvo!");
   };
 
   const importarBackup = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
@@ -313,32 +300,10 @@ function SistemaCondominio({ supabase }) {
         if (dados.despesas) setDespesas(dados.despesas);
         if (dados.patrimonio) setPatrimonio(dados.patrimonio || []);
         if (dados.config) setConfig(dados.config);
-        setShowWizard(false);
-        setModalConfig(false);
-        alert("Backup restaurado e sincronizado com a nuvem!");
+        setShowWizard(false); setModalConfig(false); alert("Dados restaurados! Eles serão salvos na sua conta.");
       } catch (error) { alert("Arquivo inválido."); }
     };
     reader.readAsText(file);
-  };
-
-  const gerarDadosDemo = () => {
-    const ano = new Date().getFullYear();
-    const pagJan = [{ id: 1, valor: 250, data: `10/01/${ano}` }];
-    const pagFev = [{ id: 2, valor: 250, data: `10/02/${ano}` }];
-    const demoU = [
-        { id: '101', numero: '101', proprietario: {nome: 'Carlos Silva', telefone: '11999999999'}, moraProprietario: true, status: { [`Janeiro-${ano}`]: pagJan, [`Fevereiro-${ano}`]: pagFev } },
-        { id: '102', numero: '102', proprietario: {nome: 'Ana Oliveira', telefone: '11888888888'}, moraProprietario: true, status: { [`Janeiro-${ano}`]: pagJan, [`Fevereiro-${ano}`]: pagFev } },
-        { id: '201', numero: '201', proprietario: {nome: 'Marcos Rezende'}, moraProprietario: false, inquilino: {nome: 'Bia Santos'}, status: { [`Janeiro-${ano}`]: pagJan } },
-        { id: '202', numero: '202', proprietario: {nome: 'Julia Lima'}, moraProprietario: true, status: { [`Janeiro-${ano}`]: [{ id: 3, valor: 100, data: `15/01/${ano}` }] } }
-    ];
-    const demoD = [
-        { id: 1, descricao: 'Energia Área Comum', valor: 350, categoria: 'Luz', data: `10/01/${ano}`, mes: 'Janeiro', ano: ano },
-        { id: 2, descricao: 'Jardinagem', valor: 200, categoria: 'Jardinagem', data: `15/01/${ano}`, mes: 'Janeiro', ano: ano }
-    ];
-    setUnidades(demoU); setDespesas(demoD);
-    setConfig({...config, predioNome: 'Residencial Demo', sindicaNome: 'Síndico Teste', valorCondominio: 250, saldoInicial: 2000, inicioOperacao: `${ano}-01-01`});
-    setMesAtual('Março'); setAnoAtual(ano);
-    setShowWizard(false);
   };
 
   const enviarCobranca = (u, dividas) => {
@@ -352,62 +317,33 @@ function SistemaCondominio({ supabase }) {
   const copiarDespesasAnteriores = () => {
     const idx = MESES.indexOf(mesAtual);
     let mAnt = '', aAnt = 0;
-    if(idx > 0) { mAnt = MESES[idx-1]; aAnt = anoAtual; }
-    else { mAnt = MESES[11]; aAnt = anoAtual-1; }
+    if(idx > 0) { mAnt = MESES[idx-1]; aAnt = anoAtual; } else { mAnt = MESES[11]; aAnt = anoAtual-1; }
     const despesasAnteriores = despesas.filter(d => d.mes === mAnt && d.ano === aAnt);
     if(despesasAnteriores.length === 0) return alert(`Nenhuma despesa encontrada em ${mAnt}/${aAnt}.`);
     const novasDespesas = despesasAnteriores.map(d => ({ ...d, id: Date.now() + Math.random(), mes: mesAtual, ano: anoAtual, data: `01/${String(idx+1).padStart(2,'0')}/${anoAtual}` }));
     setDespesas([...despesas, ...novasDespesas]);
   };
 
-  // --- CÁLCULOS ---
+  // Cálculos Financeiros
   const getMesAnoValor = (mes, ano) => ano * 12 + MESES.indexOf(mes);
-  
   const calcularInicioOperacao = useMemo(() => {
-    let minVal = Infinity;
-    let minDateStr = "";
-
-    despesas.forEach(d => {
-        const val = getMesAnoValor(d.mes, d.ano);
-        if (val < minVal) { minVal = val; minDateStr = `${d.ano}-${String(MESES.indexOf(d.mes)+1).padStart(2,'0')}-01`; }
-    });
-    unidades.forEach(u => {
-        Object.keys(u.status || {}).forEach(k => {
-            const [m, a] = k.split('-');
-            const val = getMesAnoValor(m, parseInt(a));
-            if (val < minVal) { minVal = val; minDateStr = `${a}-${String(MESES.indexOf(m)+1).padStart(2,'0')}-01`; }
-        });
-    });
-
+    let minVal = Infinity; let minDateStr = "";
+    despesas.forEach(d => { const val = getMesAnoValor(d.mes, d.ano); if (val < minVal) { minVal = val; minDateStr = `${d.ano}-${String(MESES.indexOf(d.mes)+1).padStart(2,'0')}-01`; } });
+    unidades.forEach(u => { Object.keys(u.status || {}).forEach(k => { const [m, a] = k.split('-'); const val = getMesAnoValor(m, parseInt(a)); if (val < minVal) { minVal = val; minDateStr = `${a}-${String(MESES.indexOf(m)+1).padStart(2,'0')}-01`; } }); });
     const dataManual = config.inicioOperacao ? config.inicioOperacao : null;
-    let valManual = Infinity;
-    
-    if (dataManual) {
-        const [y, m, d] = dataManual.split('-').map(Number);
-        valManual = y * 12 + (m - 1);
-    }
-
-    if (valManual < minVal) return dataManual; 
-    if (minDateStr) return minDateStr;
-    
-    return `${new Date().getFullYear()}-01-01`; 
+    let valManual = Infinity; if (dataManual) { const [y, m, d] = dataManual.split('-').map(Number); valManual = y * 12 + (m - 1); }
+    if (valManual < minVal) return dataManual; if (minDateStr) return minDateStr; return `${new Date().getFullYear()}-01-01`; 
   }, [despesas, unidades, config.inicioOperacao]);
 
   const { receitaMes, gastoMes, despesasFiltradas, pagamentosFiltrados, inadimplentes, saldoAteMomento } = useMemo(() => {
-      // 1. Receitas e Despesas do Mês Atual
       const pgs = unidades.filter(u => getPagamentosMes(u, chaveAtual).length > 0);
       const rec = pgs.reduce((acc, u) => acc + calcularTotalPago(getPagamentosMes(u, chaveAtual)), 0);
       const dps = despesas.filter(d => d.mes === mesAtual && d.ano === anoAtual);
       const gas = dps.reduce((acc, d) => acc + safeNum(d.valor), 0);
       
-      // 2. Inadimplência
-      const hoje = new Date();
-      const diaHoje = hoje.getDate();
-      const diaVencimento = safeNum(config.diaVencimento) || 10;
-      
-      const [iniY, iniM, iniD] = calcularInicioOperacao.split('-').map(Number);
+      const hoje = new Date(); const diaVencimento = safeNum(config.diaVencimento) || 10;
+      const [iniY, iniM] = calcularInicioOperacao.split('-').map(Number);
       const inicioOperacaoVal = iniY * 12 + (iniM - 1);
-      
       const mesAtualVal = getMesAnoValor(MESES[hoje.getMonth()], hoje.getFullYear());
 
       let listaInad = [];
@@ -415,104 +351,55 @@ function SistemaCondominio({ supabase }) {
         let pendente = []; let total = 0; 
         for (let i = 12; i >= 0; i--) {
            const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-           const m = MESES[d.getMonth()];
-           const y = d.getFullYear();
+           const m = MESES[d.getMonth()]; const y = d.getFullYear();
            const valAtual = getMesAnoValor(m, y);
-           const k = `${m}-${y}`;
-
-           const deveCobrar = valAtual >= inicioOperacaoVal && (valAtual < mesAtualVal || (valAtual === mesAtualVal && diaHoje > diaVencimento));
-
-           if (deveCobrar) {
-              const pags = getPagamentosMes(u, k);
-              const totalPago = calcularTotalPago(pags);
+           if (valAtual >= inicioOperacaoVal && (valAtual < mesAtualVal || (valAtual === mesAtualVal && hoje.getDate() > diaVencimento))) {
+              const totalPago = calcularTotalPago(getPagamentosMes(u, `${m}-${y}`));
               const valorDevido = safeNum(config.valorCondominio);
-              
-              if (totalPago < valorDevido) {
-                  const falta = valorDevido - totalPago;
-                  if (falta > 0) {
-                      pendente.push({ mes: m, ano: y, valor: falta, parcial: totalPago > 0 });
-                      total += falta;
-                  }
-              }
+              if (totalPago < valorDevido) { pendente.push({ mes: m, ano: y, valor: valorDevido - totalPago }); total += (valorDevido - totalPago); }
            }
         }
         if(pendente.length > 0) listaInad.push({ unidade: u, meses: pendente, total });
       });
 
-      // 3. Saldo Acumulado
       const corteAtual = getMesAnoValor(mesAtual, anoAtual);
-      
       let recHist = 0; let despHist = 0;
-      
-      unidades.forEach(u => { 
-          Object.keys(u.status || {}).forEach(k => {
-             const [m, a] = k.split('-');
-             const val = getMesAnoValor(m, parseInt(a));
-             if (val >= inicioOperacaoVal && val <= corteAtual) {
-                 recHist += calcularTotalPago(getPagamentosMes(u, k));
-             }
-          });
-      });
-      despesas.forEach(d => {
-          const val = getMesAnoValor(d.mes, d.ano);
-          if (val >= inicioOperacaoVal && val <= corteAtual) despHist += safeNum(d.valor);
-      });
+      unidades.forEach(u => { Object.keys(u.status || {}).forEach(k => { const [m, a] = k.split('-'); if (getMesAnoValor(m, parseInt(a)) >= inicioOperacaoVal && getMesAnoValor(m, parseInt(a)) <= corteAtual) recHist += calcularTotalPago(getPagamentosMes(u, k)); }); });
+      despesas.forEach(d => { if (getMesAnoValor(d.mes, d.ano) >= inicioOperacaoVal && getMesAnoValor(d.mes, d.ano) <= corteAtual) despHist += safeNum(d.valor); });
 
-      return { 
-        receitaMes: rec, gastoMes: gas, despesasFiltradas: dps, pagamentosFiltrados: pgs, inadimplentes: listaInad,
-        saldoAteMomento: safeNum(config.saldoInicial) + recHist - despHist
-      };
+      return { receitaMes: rec, gastoMes: gas, despesasFiltradas: dps, pagamentosFiltrados: pgs, inadimplentes: listaInad, saldoAteMomento: safeNum(config.saldoInicial) + recHist - despHist };
   }, [unidades, despesas, chaveAtual, config.saldoInicial, config.valorCondominio, calcularInicioOperacao, config.diaVencimento, mesAtual, anoAtual]);
 
   const saldoGeral = useMemo(() => {
-      const [iniY, iniM] = calcularInicioOperacao.split('-').map(Number);
-      const corteInicio = iniY * 12 + (iniM - 1);
-
-      const totalRec = unidades.reduce((acc, u) => acc + Object.keys(u.status || {}).reduce((s, k) => {
-          const [m, a] = k.split('-');
-          if (getMesAnoValor(m, parseInt(a)) >= corteInicio) {
-              return s + calcularTotalPago(getPagamentosMes(u, k));
-          }
-          return s;
-      }, 0), 0);
-
-      const totalDesp = despesas.reduce((acc, d) => {
-          if (getMesAnoValor(d.mes, d.ano) >= corteInicio) return acc + safeNum(d.valor);
-          return acc;
-      }, 0);
-
+      const [iniY, iniM] = calcularInicioOperacao.split('-').map(Number); const corteInicio = iniY * 12 + (iniM - 1);
+      const totalRec = unidades.reduce((acc, u) => acc + Object.keys(u.status || {}).reduce((s, k) => { const [m, a] = k.split('-'); return getMesAnoValor(m, parseInt(a)) >= corteInicio ? s + calcularTotalPago(getPagamentosMes(u, k)) : s; }, 0), 0);
+      const totalDesp = despesas.reduce((acc, d) => getMesAnoValor(d.mes, d.ano) >= corteInicio ? acc + safeNum(d.valor) : acc, 0);
       return safeNum(config.saldoInicial) + totalRec - totalDesp;
   }, [unidades, despesas, config.saldoInicial, calcularInicioOperacao]);
 
-  if (loading || !supabase) {
-      return (
-          <div className="min-h-screen flex items-center justify-center bg-slate-50">
-             <div className="animate-spin text-[#84cc16]"><RefreshCw size={40}/></div>
-             <p className="ml-4 font-black text-[#1e293b]">Conectando ao Banco...</p>
-          </div>
-      );
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><RefreshCw className="animate-spin text-[#84cc16]"/><p className="ml-4 font-black text-[#1e293b]">Carregando seus dados...</p></div>;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-28 print:bg-white print:pb-0">
       <style>{`@media print { .no-print { display: none !important; } .print-area { display: block !important; position: absolute; top:0; left:0; width:100%; height:100%; z-index:9999; background:white; } }`}</style>
+      
+      {showWizard && <SetupWizard config={config} setConfig={setConfig} setUnidades={setUnidades} onDemo={() => { 
+          const ano = new Date().getFullYear();
+          setUnidades([{ id: '101', numero: '101', proprietario: {nome: 'Carlos'}, moraProprietario: true, status: {} }]);
+          setDespesas([{ id: 1, descricao: 'Energia', valor: 350, categoria: 'Luz', data: `10/01/${ano}`, mes: 'Janeiro', ano }]);
+          setConfig({...config, predioNome: 'Demo', sindicaNome: 'Teste', valorCondominio: 250, inicioOperacao: `${ano}-01-01`});
+          setShowWizard(false); 
+      }} onComplete={() => setShowWizard(false)} importarBackup={importarBackup} />}
 
-      {/* Topo Premium */}
       <div className="bg-[#1e293b] text-white py-3 px-4 flex justify-between items-center sticky top-0 z-40 no-print border-b border-white/5 shadow-xl">
         <div className="flex gap-2 items-center">
            <div className="bg-[#84cc16] p-1.5 rounded-lg"><Home size={14} className="text-[#1e293b]"/></div>
-           <span className="font-bold text-xs truncate max-w-[150px]">{safeStr(config.predioNome || config.sindicaNome || "CondoLeve")}</span>
+           <span className="font-bold text-xs truncate max-w-[150px]">{safeStr(config.predioNome || "Seu Condomínio")}</span>
         </div>
         <div className="flex gap-2 items-center">
-          {/* Status Sync */}
-          <div className="mr-2">
-             {statusSync === 'saving' && <RefreshCw size={14} className="animate-spin text-yellow-400"/>}
-             {statusSync === 'saved' && <Cloud size={14} className="text-[#84cc16]"/>}
-             {statusSync === 'error' && <WifiOff size={14} className="text-red-500"/>}
-          </div>
-          <button onClick={() => setModalInstalar(true)} className="bg-white/10 hover:bg-white/20 p-2 rounded-xl transition"><Smartphone size={16}/></button>
-          <button onClick={() => setModalZeladoria(true)} className="bg-white/10 hover:bg-white/20 p-2 rounded-xl transition"><Wrench size={16}/></button>
+          <div className="mr-2">{statusSync === 'saving' && <RefreshCw size={14} className="animate-spin text-yellow-400"/>}{statusSync === 'saved' && <Cloud size={14} className="text-[#84cc16]"/>}{statusSync === 'error' && <WifiOff size={14} className="text-red-500"/>}</div>
           <button onClick={() => setModalConfig(true)} className="bg-white/10 hover:bg-white/20 p-2 rounded-xl transition"><Settings size={16}/></button>
+          <button onClick={() => supabase.auth.signOut()} className="bg-red-500/20 hover:bg-red-500/40 p-2 rounded-xl transition text-red-200"><LogOut size={16}/></button>
         </div>
       </div>
 
@@ -536,8 +423,6 @@ function SistemaCondominio({ supabase }) {
       </header>
 
       <main className="max-w-4xl mx-auto p-4 -mt-8 relative z-10 no-print">
-        
-        {/* ABA RECEITAS */}
         {abaAtiva === 'receitas' && (
           <div className="space-y-4 animate-in fade-in duration-500">
             <div className="grid gap-3">
@@ -547,41 +432,18 @@ function SistemaCondominio({ supabase }) {
                 const totalPago = calcularTotalPago(pags);
                 const isPago = totalPago >= valorDevido;
                 const isParcial = totalPago > 0 && totalPago < valorDevido;
-                const nomeMorador = u.moraProprietario ? (u.proprietario?.nome || "Proprietário") : (u.inquilino?.nome || u.proprietario?.nome || "Morador");
-                
                 return (
                   <Card key={u.id} className={`p-4 border-l-[6px] transition-all hover:shadow-md ${isPago ? 'border-l-[#84cc16]' : (isParcial ? 'border-l-yellow-400' : 'border-l-slate-200')}`}>
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex gap-4 items-center text-left">
                         <div className="w-14 h-14 bg-slate-50 rounded-2xl font-black flex items-center justify-center text-slate-400 text-lg border border-slate-100">{safeStr(u.numero)}</div>
                         <div>
-                          <p className="font-black text-slate-800 flex items-center gap-2">
-                             {safeStr(nomeMorador)} 
-                             {u.moraProprietario && <Badge color="black">PROPRIETÁRIO</Badge>}
-                             <button onClick={() => setModalEditar(u)} className="text-slate-300 hover:text-blue-500 transition"><Pencil size={12}/></button>
-                          </p>
-                          <div className="mt-1">
-                             {totalPago > 0 ? (
-                                 <div className="flex flex-col gap-1">
-                                     <div className="flex items-center gap-2">
-                                         <span className={`text-[10px] font-black uppercase tracking-tighter flex items-center gap-1 ${isPago ? 'text-[#84cc16]' : 'text-yellow-600'}`}>
-                                            <CheckCircle size={10}/> {isPago ? 'PAGO' : 'PARCIAL'} • {formatarMoeda(totalPago)}
-                                         </span>
-                                     </div>
-                                     {isParcial && <span className="text-[9px] font-bold text-slate-400">Falta: {formatarMoeda(valorDevido - totalPago)}</span>}
-                                 </div>
-                             ) : (
-                                 <span className="text-[10px] font-black text-slate-400 tracking-wide uppercase">PENDENTE • {formatarMoeda(valorDevido)}</span>
-                             )}
-                          </div>
+                          <p className="font-black text-slate-800 flex items-center gap-2">{safeStr(u.moraProprietario ? u.proprietario?.nome : u.inquilino?.nome)} <button onClick={() => setModalEditar(u)} className="text-slate-300 hover:text-blue-500"><Pencil size={12}/></button></p>
+                          <div className="mt-1">{totalPago > 0 ? <span className={`text-[10px] font-black uppercase tracking-tighter flex items-center gap-1 ${isPago ? 'text-[#84cc16]' : 'text-yellow-600'}`}><CheckCircle size={10}/> {isPago ? 'PAGO' : 'PARCIAL'} • {formatarMoeda(totalPago)}</span> : <span className="text-[10px] font-black text-slate-400 tracking-wide uppercase">PENDENTE • {formatarMoeda(valorDevido)}</span>}</div>
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-2">
-                          {totalPago > 0 ? (
-                              <button onClick={() => setModalDetalhesUnidade({ u, mes: mesAtual, ano: anoAtual, pags, totalPago, valorDevido })} className="text-[10px] bg-slate-100 text-slate-600 font-black px-4 py-2 rounded-xl hover:bg-slate-200 transition flex items-center gap-2"><Eye size={12}/> DETALHES</button>
-                          ) : (
-                              <button onClick={() => setModalPagamento({ unidadeId: u.id, valorSugerido: valorDevido })} className="bg-[#1e293b] text-white text-[10px] font-black px-6 py-3 rounded-2xl shadow-lg active:scale-95 transition">RECEBER</button>
-                          )}
+                          {totalPago > 0 ? <button onClick={() => setModalDetalhesUnidade({ u, mes: mesAtual, ano: anoAtual, pags, totalPago, valorDevido })} className="text-[10px] bg-slate-100 text-slate-600 font-black px-4 py-2 rounded-xl hover:bg-slate-200 flex items-center gap-2"><Eye size={12}/> DETALHES</button> : <button onClick={() => setModalPagamento({ unidadeId: u.id, valorSugerido: valorDevido })} className="bg-[#1e293b] text-white text-[10px] font-black px-6 py-3 rounded-2xl shadow-lg active:scale-95 transition">RECEBER</button>}
                       </div>
                     </div>
                   </Card>
@@ -591,168 +453,24 @@ function SistemaCondominio({ supabase }) {
           </div>
         )}
 
-        {/* ABA DESPESAS */}
         {abaAtiva === 'despesas' && (
           <div className="space-y-4 animate-in fade-in duration-500">
-             <Card className="p-6 bg-white border-l-[6px] border-l-red-500 shadow-xl flex justify-between items-center">
-               <div className="text-left">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total de Gastos</p>
-                  <p className="text-3xl font-black text-red-600">{formatarMoeda(gastoMes)}</p>
-               </div>
-               <button onClick={() => setModalNovaDespesa(true)} className="bg-red-500 text-white px-5 py-4 rounded-2xl font-black text-xs shadow-lg flex items-center gap-2 hover:bg-red-600 transition"><PlusCircle size={18}/> LANÇAR CONTA</button>
-            </Card>
-
-            {despesasFiltradas.length === 0 && (
-                <div className="text-center py-16 bg-white rounded-3xl border-2 border-dashed border-slate-200 px-8">
-                    <p className="text-slate-400 font-bold mb-4">Nenhuma conta lançada.</p>
-                    <button onClick={copiarDespesasAnteriores} className="text-[#1e293b] font-black text-sm flex items-center justify-center gap-2 mx-auto bg-slate-100 px-6 py-3 rounded-2xl hover:bg-slate-200 transition"><Copy size={16}/> Reutilizar do mês anterior</button>
-                </div>
-            )}
-
-             <div className="grid gap-2">
-                {despesasFiltradas.map(d => (
-                  <Card key={d.id} className="p-4 flex justify-between items-center text-left">
-                    <div>
-                        <p className="font-black text-slate-800">{safeStr(d.descricao)}</p>
-                        <div className="flex gap-2 mt-1">
-                            <Badge color={d.categoria === 'Luz' ? 'orange' : 'slate'}>{safeStr(d.categoria)}</Badge>
-                            <span className="text-[10px] font-bold text-slate-400 self-center">{safeStr(d.data)}</span>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                       <p className="font-black text-red-600">-{formatarMoeda(d.valor)}</p>
-                       <div className="flex gap-1">
-                          <button onClick={() => setModalEditarDespesa(d)} className="p-2 text-slate-300 hover:text-blue-500 transition"><Edit size={16}/></button>
-                          <button onClick={() => { if(confirm("Apagar conta?")) setDespesas(despesas.filter(x=>x.id!==d.id)) }} className="p-2 text-slate-300 hover:text-red-500 transition"><Trash2 size={16}/></button>
-                       </div>
-                    </div>
-                  </Card>
-                ))}
-             </div>
+             <Card className="p-6 bg-white border-l-[6px] border-l-red-500 shadow-xl flex justify-between items-center"><div className="text-left"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total de Gastos</p><p className="text-3xl font-black text-red-600">{formatarMoeda(gastoMes)}</p></div><button onClick={() => setModalNovaDespesa(true)} className="bg-red-500 text-white px-5 py-4 rounded-2xl font-black text-xs shadow-lg flex items-center gap-2 hover:bg-red-600 transition"><PlusCircle size={18}/> LANÇAR CONTA</button></Card>
+             {despesasFiltradas.length === 0 && <div className="text-center py-16 bg-white rounded-3xl border-2 border-dashed border-slate-200 px-8"><p className="text-slate-400 font-bold mb-4">Nenhuma conta lançada.</p><button onClick={copiarDespesasAnteriores} className="text-[#1e293b] font-black text-sm flex items-center justify-center gap-2 mx-auto bg-slate-100 px-6 py-3 rounded-2xl hover:bg-slate-200 transition"><Copy size={16}/> Reutilizar do mês anterior</button></div>}
+             <div className="grid gap-2">{despesasFiltradas.map(d => (<Card key={d.id} className="p-4 flex justify-between items-center text-left"><div><p className="font-black text-slate-800">{safeStr(d.descricao)}</p><div className="flex gap-2 mt-1"><Badge color={d.categoria === 'Luz' ? 'orange' : 'slate'}>{safeStr(d.categoria)}</Badge><span className="text-[10px] font-bold text-slate-400 self-center">{safeStr(d.data)}</span></div></div><div className="flex items-center gap-4"><p className="font-black text-red-600">-{formatarMoeda(d.valor)}</p><div className="flex gap-1"><button onClick={() => setModalEditarDespesa(d)} className="p-2 text-slate-300 hover:text-blue-500"><Edit size={16}/></button><button onClick={() => { if(confirm("Apagar conta?")) setDespesas(despesas.filter(x=>x.id!==d.id)) }} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16}/></button></div></div></Card>))}</div>
           </div>
         )}
 
-        {/* ABA CAIXA */}
         {abaAtiva === 'caixa' && (
           <div className="space-y-6 animate-in fade-in duration-500">
-             <section>
-                <div className="bg-[#1e293b] text-white p-10 rounded-[32px] shadow-2xl relative overflow-hidden text-left">
-                   <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none transform translate-x-1/4 -translate-y-1/4"><Wallet size={200}/></div>
-                   <div className="relative z-10">
-                       <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Saldo em Caixa</p>
-                       <h2 className="text-5xl font-black mb-10 tracking-tighter">{formatarMoeda(saldoGeral)}</h2>
-                       
-                       <div className="mb-10 pt-4 border-t border-white/10">
-                            <p className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
-                                <History size={10}/> Saldo acumulado até {safeStr(mesAtual)}/{safeStr(anoAtual)}
-                            </p>
-                            <p className="text-xl font-bold text-[#84cc16] tracking-tight">{formatarMoeda(saldoAteMomento)}</p>
-                       </div>
-
-                       <div className="grid grid-cols-2 gap-4">
-                          <button onClick={() => setModalRelatorio(true)} className="bg-[#84cc16] text-[#1e293b] py-4 rounded-2xl font-black text-sm shadow-xl flex items-center justify-center gap-2 hover:bg-[#a3e635] transition"><FileText size={18}/> GERAR PDF</button>
-                          <button onClick={() => setModalUpsell(true)} className="bg-white/10 py-4 rounded-2xl font-black text-sm border border-white/20 flex items-center justify-center gap-2 hover:bg-white/20 transition"><Cloud size={18} className="text-[#84cc16]"/> NUVEM PRO</button>
-                       </div>
-                   </div>
-                </div>
-             </section>
-
-             <section className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm text-left">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase mb-8 tracking-[0.2em] flex items-center gap-2"><BarChart3 size={16} className="text-[#84cc16]"/> Evolução do Patrimônio</h4>
-                <div className="relative h-48 flex items-end justify-between gap-3 pt-4 border-b border-slate-100">
-                    {(() => {
-                        const dataRef = new Date(anoAtual, MESES.indexOf(mesAtual), 1);
-                        const mesesGrafico = [5,4,3,2,1,0].map(offset => {
-                             const d = new Date(dataRef); d.setMonth(d.getMonth() - offset);
-                             return { nome: MESES[d.getMonth()].slice(0,3).toUpperCase(), mes: MESES[d.getMonth()], ano: d.getFullYear() };
-                        });
-                        
-                        const historico = mesesGrafico.map(ponto => {
-                             let saldoNoPonto = safeNum(config.saldoInicial);
-                             
-                             // Parse seguro para o corte inicial
-                             const [iniY, iniM] = calcularInicioOperacao.split('-').map(Number);
-                             const corteInicio = iniY * 12 + (iniM - 1);
-                             
-                             const cortePonto = getMesAnoValor(ponto.mes, ponto.ano);
-                             
-                             // Se o ponto do gráfico é anterior ao início da operação, saldo é zero
-                             if (cortePonto < corteInicio) return { ...ponto, saldo: 0 };
-
-                             unidades.forEach(u => {
-                                Object.keys(u.status || {}).forEach(k => {
-                                    const [m, a] = k.split('-');
-                                    const val = getMesAnoValor(m, parseInt(a));
-                                    if(val >= corteInicio && val <= cortePonto) {
-                                        saldoNoPonto += calcularTotalPago(getPagamentosMes(u, k));
-                                    }
-                                });
-                             });
-                             
-                             despesas.forEach(d => {
-                                const val = getMesAnoValor(d.mes, d.ano);
-                                if(val >= corteInicio && val <= cortePonto) saldoNoPonto -= safeNum(d.valor);
-                             });
-                             
-                             return { ...ponto, saldo: saldoNoPonto };
-                        });
-
-                        const maxVal = Math.max(...historico.map(h => Math.abs(h.saldo)), 100);
-                        
-                        return historico.map((h, i) => {
-                            const heightPercentage = Math.max(Math.min((Math.abs(h.saldo) / maxVal) * 100, 100), 2);
-                            const color = h.saldo >= 0 ? 'bg-[#84cc16]' : 'bg-red-500';
-                            return (
-                                <div key={i} className="flex-1 flex flex-col items-center group relative h-full justify-end">
-                                    <div className="mb-2 text-[9px] font-black text-slate-500">{formatarMoeda(h.saldo)}</div>
-                                    <div className={`w-full rounded-t-xl ${color} opacity-80 group-hover:opacity-100 transition-all cursor-pointer shadow-sm`} style={{ height: `${heightPercentage}%` }}></div>
-                                    <span className="text-[9px] font-black text-slate-300 mt-2 tracking-tighter uppercase">{safeStr(h.nome)}</span>
-                                </div>
-                            );
-                        });
-                    })()}
-                </div>
-             </section>
+             <section><div className="bg-[#1e293b] text-white p-10 rounded-[32px] shadow-2xl relative overflow-hidden text-left"><div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none transform translate-x-1/4 -translate-y-1/4"><Wallet size={200}/></div><div className="relative z-10"><p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Saldo em Caixa</p><h2 className="text-5xl font-black mb-10 tracking-tighter">{formatarMoeda(saldoGeral)}</h2><div className="mb-10 pt-4 border-t border-white/10"><p className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1"><History size={10}/> Saldo acumulado até {safeStr(mesAtual)}/{safeStr(anoAtual)}</p><p className="text-xl font-bold text-[#84cc16] tracking-tight">{formatarMoeda(saldoAteMomento)}</p></div><div className="grid grid-cols-2 gap-4"><button onClick={() => setModalRelatorio(true)} className="bg-[#84cc16] text-[#1e293b] py-4 rounded-2xl font-black text-sm shadow-xl flex items-center justify-center gap-2 hover:bg-[#a3e635]"><FileText size={18}/> GERAR PDF</button><button onClick={() => setModalUpsell(true)} className="bg-white/10 py-4 rounded-2xl font-black text-sm border border-white/20 flex items-center justify-center gap-2 hover:bg-white/20"><Cloud size={18} className="text-[#84cc16]"/> NUVEM PRO</button></div></div></div></section>
           </div>
         )}
 
-        {/* ABA COBRANÇAS */}
         {abaAtiva === 'cobrancas' && (
            <div className="space-y-4 animate-in slide-in-from-bottom-4">
-              <div className="bg-[#1e293b] p-6 rounded-3xl shadow-xl flex justify-between items-center border border-white/5 text-left">
-                 <div>
-                    <h3 className="font-black text-white text-sm uppercase tracking-widest">Inadimplência</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Total acumulado em atraso</p>
-                 </div>
-                 <div className="text-right text-3xl font-black text-red-400">
-                    {formatarMoeda(inadimplentes.reduce((acc, i) => acc + i.total, 0))}
-                 </div>
-              </div>
-              <div className="grid gap-3">
-                 {inadimplentes.map(item => {
-                    const morador = item.unidade.moraProprietario ? (item.unidade.proprietario?.nome || "") : (item.unidade.inquilino?.nome || item.unidade.proprietario?.nome || "");
-                    return (
-                      <Card key={item.unidade.id} className="border-l-4 border-l-red-500 p-4 flex justify-between items-center transition-all hover:translate-x-1 text-left">
-                         <div className="flex gap-4 items-center">
-                            <div className="w-12 h-12 bg-red-50 text-red-600 rounded-xl font-black flex items-center justify-center text-sm">{safeStr(item.unidade.numero)}</div>
-                            <div>
-                               <div className="font-black text-slate-800">{safeStr(morador) || "Morador"}</div>
-                               <div className="text-xs font-bold text-red-500 mt-0.5 uppercase tracking-tighter">{formatarMoeda(item.total)} • {item.meses.length} meses</div>
-                            </div>
-                         </div>
-                         <div className="flex gap-2">
-                             <button onClick={() => setModalDetalhesInad(item)} className="bg-red-50 text-red-600 px-4 py-3 rounded-2xl text-xs font-black flex items-center gap-2 transition hover:bg-red-100"><Eye size={16}/></button>
-                             <button onClick={() => enviarCobranca(item.unidade, item.meses)} className="bg-[#84cc16] text-[#1e293b] px-4 py-3 rounded-2xl text-xs font-black flex items-center gap-2 shadow-lg transition active:scale-90"><MessageCircle size={16}/> COBRAR</button>
-                         </div>
-                      </Card>
-                    );
-                 })}
-                 {inadimplentes.length === 0 && (
-                    <div className="text-center py-20 bg-white rounded-3xl border border-slate-100 px-8">
-                        <CheckCircle className="w-12 h-12 text-[#84cc16] mx-auto mb-4"/><p className="text-slate-400 font-bold">Nenhum atraso!</p>
-                    </div>
-                 )}
-              </div>
+              <div className="bg-[#1e293b] p-6 rounded-3xl shadow-xl flex justify-between items-center border border-white/5 text-left"><div><h3 className="font-black text-white text-sm uppercase tracking-widest">Inadimplência</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Total acumulado em atraso</p></div><div className="text-right text-3xl font-black text-red-400">{formatarMoeda(inadimplentes.reduce((acc, i) => acc + i.total, 0))}</div></div>
+              <div className="grid gap-3">{inadimplentes.map(item => (<Card key={item.unidade.id} className="border-l-4 border-l-red-500 p-4 flex justify-between items-center transition-all hover:translate-x-1 text-left"><div className="flex gap-4 items-center"><div className="w-12 h-12 bg-red-50 text-red-600 rounded-xl font-black flex items-center justify-center text-sm">{safeStr(item.unidade.numero)}</div><div><div className="font-black text-slate-800">{safeStr(item.unidade.proprietario?.nome) || "Morador"}</div><div className="text-xs font-bold text-red-500 mt-0.5 uppercase tracking-tighter">{formatarMoeda(item.total)} • {item.meses.length} meses</div></div></div><div className="flex gap-2"><button onClick={() => setModalDetalhesInad(item)} className="bg-red-50 text-red-600 px-4 py-3 rounded-2xl text-xs font-black flex items-center gap-2 hover:bg-red-100"><Eye size={16}/></button><button onClick={() => enviarCobranca(item.unidade, item.meses)} className="bg-[#84cc16] text-[#1e293b] px-4 py-3 rounded-2xl text-xs font-black flex items-center gap-2 shadow-lg active:scale-90"><MessageCircle size={16}/> COBRAR</button></div></Card>))}</div>
            </div>
         )}
       </main>
@@ -765,7 +483,6 @@ function SistemaCondominio({ supabase }) {
          <NavBtn active={abaAtiva === 'caixa'} onClick={() => setAbaAtiva('caixa')} icon={<PieChart size={24}/>} label="O Caixa" />
       </nav>
 
-      {/* --- MODAIS --- */}
       {modalPagamento && <ModalReceber valorSugerido={modalPagamento.valorSugerido} onCancel={() => setModalPagamento(null)} onConfirm={(v,d) => { adicionarPagamento(modalPagamento.unidadeId, v, d); setModalPagamento(null); }} />}
       {modalDetalhesUnidade && <ModalDetalhesUnidade dados={modalDetalhesUnidade} sindica={config.sindicaNome} chavePix={config.chavePix} onAdd={(v,d) => { adicionarPagamento(modalDetalhesUnidade.u.id, v, d); setModalDetalhesUnidade(null); }} onDelete={(pid) => { removerPagamento(modalDetalhesUnidade.u.id, pid, `${modalDetalhesUnidade.mes}-${modalDetalhesUnidade.ano}`); setModalDetalhesUnidade(null); }} onClose={() => setModalDetalhesUnidade(null)} />}
       {modalDetalhesInad && <ModalDetalhesInadimplencia dados={modalDetalhesInad} onClose={() => setModalDetalhesInad(null)} />}
@@ -782,463 +499,51 @@ function SistemaCondominio({ supabase }) {
   );
 }
 
-// --- MODAIS AUXILIARES ---
-
-function ModalDetalhesUnidade({ dados, sindica, chavePix, onAdd, onDelete, onClose }) {
-    const [novoValor, setNovoValor] = useState('');
-    const [novaData, setNovaData] = useState(new Date().toISOString().split('T')[0]);
-    const nomeMorador = dados.u.moraProprietario ? (dados.u.proprietario?.nome || "Proprietário") : (dados.u.inquilino?.nome || dados.u.proprietario?.nome || "Morador");
-    const [modoRecibo, setModoRecibo] = useState(false);
-
-    if(modoRecibo) {
-        return <ModalRecibo dados={{nome: nomeMorador, valor: dados.totalPago, mes: dados.mes, ano: dados.ano, sindica: sindica }} onClose={() => setModoRecibo(false)} />;
-    }
-
-    return (
-        <div className="fixed inset-0 bg-[#1e293b]/90 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
-           <div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl text-left">
-              <div className="flex justify-between items-center mb-6">
-                 <div>
-                    <h3 className="font-black text-xl text-slate-900 tracking-tighter">Extrato {dados.u.numero}</h3>
-                    <p className="text-xs font-bold text-slate-400 uppercase">{dados.mes}/{dados.ano}</p>
-                 </div>
-                 <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100"><X size={24}/></button>
-              </div>
-              
-              <div className="space-y-4 mb-6 max-h-48 overflow-y-auto">
-                 {dados.pags.map(p => (
-                     <div key={p.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
-                         <div>
-                             <p className="font-black text-slate-700 text-sm">{formatarMoeda(p.valor)}</p>
-                             <p className="text-[10px] text-slate-400 font-bold uppercase">Pago em {p.data}</p>
-                         </div>
-                         <button onClick={() => onDelete(p.id)} className="text-red-300 hover:text-red-500 p-2"><Trash2 size={16}/></button>
-                     </div>
-                 ))}
-                 {dados.pags.length === 0 && <p className="text-center text-slate-400 text-xs italic">Nenhum pagamento registrado.</p>}
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-6">
-                 <div className="flex justify-between items-center mb-1">
-                     <span className="text-[10px] font-black text-slate-400 uppercase">Total Pago</span>
-                     <span className="font-black text-[#84cc16]">{formatarMoeda(dados.totalPago)}</span>
-                 </div>
-                 <div className="flex justify-between items-center">
-                     <span className="text-[10px] font-black text-slate-400 uppercase">Valor Devido</span>
-                     <span className="font-bold text-slate-600 text-xs">{formatarMoeda(dados.valorDevido)}</span>
-                 </div>
-              </div>
-
-              {dados.totalPago > 0 && (
-                  <button onClick={() => setModoRecibo(true)} className="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-black text-xs mb-4 flex items-center justify-center gap-2 hover:bg-slate-200 transition"><FileText size={16}/> GERAR RECIBO TOTAL</button>
-              )}
-
-              <div className="pt-6 border-t border-slate-100">
-                  <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Adicionar Pagamento (Complemento)</p>
-                  <div className="flex gap-2">
-                      <input type="number" placeholder="Valor" value={novoValor} onChange={e=>setNovoValor(e.target.value)} className="w-1/3 border-2 border-slate-100 p-3 rounded-xl font-bold text-sm outline-none focus:border-[#84cc16]"/>
-                      <input type="date" value={novaData} onChange={e=>setNovaData(e.target.value)} className="w-1/3 border-2 border-slate-100 p-3 rounded-xl font-bold text-xs outline-none focus:border-[#84cc16]"/>
-                      <button onClick={() => {if(novoValor) onAdd(Number(novoValor), novaData.split('-').reverse().join('/'))}} className="flex-1 bg-[#1e293b] text-white rounded-xl font-black text-xs shadow-lg"><PlusCircle size={16} className="mx-auto"/></button>
-                  </div>
-              </div>
-           </div>
-        </div>
-    );
-}
-
-function ModalDetalhesInadimplencia({ dados, onClose }) {
-    return (
-        <div className="fixed inset-0 bg-[#1e293b]/90 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
-           <div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl text-left">
-              <div className="flex justify-between items-center mb-6">
-                 <h3 className="font-black text-xl text-slate-900 tracking-tighter">Detalhes da Dívida</h3>
-                 <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100"><X size={24}/></button>
-              </div>
-              <div className="bg-red-50 p-4 rounded-2xl border border-red-100 mb-6 text-center">
-                  <p className="text-[10px] font-black text-red-400 uppercase mb-1">Total em Atraso</p>
-                  <p className="text-3xl font-black text-red-600">{formatarMoeda(dados.total)}</p>
-              </div>
-              <div className="space-y-3 max-h-60 overflow-y-auto">
-                 {dados.meses.map((m, idx) => (
-                     <div key={idx} className="flex justify-between items-center border-b border-slate-50 pb-2">
-                         <span className="font-black text-slate-700 text-sm">{m.mes}/{m.ano}</span>
-                         <span className="font-bold text-red-500 text-sm">{formatarMoeda(m.valor)}</span>
-                     </div>
-                 ))}
-              </div>
-              <button onClick={onClose} className="w-full mt-6 bg-slate-100 text-slate-600 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition">Fechar</button>
-           </div>
-        </div>
-    );
-}
-
-function SetupWizard({ config, setConfig, setUnidades, onDemo, onComplete, importarBackup }) {
-    const [step, setStep] = useState(1);
-    const [local, setLocal] = useState({...config});
-    const [lista, setLista] = useState('');
-    return (
-        <div className="min-h-screen bg-white flex flex-col p-8 font-sans max-w-md mx-auto text-left">
-            <Logo className="mb-10" />
-            <div className="flex gap-2 mb-10">
-                {[1,2,3].map(i => <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${step >= i ? 'bg-[#1e293b]' : 'bg-slate-100'}`}></div>)}
-            </div>
-            {step === 1 && (
-                <div className="animate-in slide-in-from-bottom-4 duration-500 text-left">
-                    <h2 className="text-3xl font-black text-slate-900 mb-2 leading-tight">Vamos montar seu prédio? 🏢</h2>
-                    <p className="text-slate-500 mb-10 font-medium">Informações básicas para personalizar o CondoLeve.</p>
-                    <div className="space-y-6">
-                        <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nome do Condomínio</span><input value={local.predioNome || ""} onChange={e=>setLocal({...local, predioNome:e.target.value})} placeholder="Ex: Residencial Solar" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black focus:border-[#84cc16] outline-none transition-all"/></label>
-                        <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase">Seu Nome (Síndico)</span><input value={local.sindicaNome || ""} onChange={e=>setLocal({...local, sindicaNome:e.target.value})} placeholder="Ex: Maria Clara" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black focus:border-[#84cc16] outline-none transition-all"/></label>
-                    </div>
-                </div>
-            )}
-            {step === 2 && (
-                <div className="animate-in slide-in-from-right-4 duration-500 text-left">
-                    <h2 className="text-3xl font-black text-slate-900 mb-2 leading-tight">Valores e PIX 💰</h2>
-                    <p className="text-slate-500 mb-10 font-medium">Como seus moradores devem pagar?</p>
-                    <div className="space-y-6">
-                        <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Condomínio Mensal</span><input type="number" value={safeNum(local.valorCondominio)} onChange={e=>setLocal({...local, valorCondominio:Number(e.target.value)})} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black text-green-600 focus:border-[#84cc16] outline-none"/></label>
-                        <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chave PIX</span><input value={local.chavePix || ""} onChange={e=>setLocal({...local, chavePix:e.target.value})} placeholder="Para os recibos" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black focus:border-[#84cc16] outline-none"/></label>
-                    </div>
-                </div>
-            )}
-            {step === 3 && (
-                <div className="animate-in slide-in-from-right-4 duration-500 text-left">
-                    <h2 className="text-3xl font-black text-slate-900 mb-2 leading-tight">As Unidades 🏠</h2>
-                    <p className="text-slate-500 mb-10 font-medium">Liste os números dos apartamentos/casas separados por vírgula.</p>
-                    <textarea value={lista} onChange={e=>setLista(e.target.value)} placeholder="Ex: 101, 102, 201, 202..." className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black h-40 focus:border-[#84cc16] outline-none resize-none transition-all"/>
-                </div>
-            )}
-            <div className="mt-auto pt-10 flex flex-col gap-4 text-left">
-                <button onClick={() => { if (step < 3) setStep(step + 1); else {
-                        const ids = lista.split(',').map(n => n.trim()).filter(n => n);
-                        if (ids.length === 0) return alert("Cadastre unidades.");
-                        setUnidades(ids.map(n => ({ id: n, numero: n, proprietario: {nome:'', telefone:''}, moraProprietario: true, status: {} })));
-                        setConfig(local); onComplete();
-                    }}} className="w-full bg-[#1e293b] text-white py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-2 shadow-2xl transition active:scale-95">
-                    {step === 3 ? 'FINALIZAR SETUP' : 'PRÓXIMO'} <ArrowRight size={20}/>
-                </button>
-                {step === 1 && (
-                    <div className="space-y-2">
-                         <button onClick={onDemo} className="w-full text-sm font-black text-[#84cc16] py-3 flex items-center justify-center gap-2 hover:bg-slate-50 rounded-xl transition uppercase tracking-tighter"><Sparkles size={16}/> Gerar dados de teste</button>
-                         <label className="w-full text-xs font-bold text-slate-400 py-3 flex items-center justify-center gap-2 cursor-pointer border-t border-slate-100"><Download size={12}/> RESTAURAR BACKUP (.JSON)<input type="file" accept=".json" onChange={importarBackup} className="hidden"/></label>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-}
-
+// --- MODAIS AUXILIARES (SIMPLIFICADOS) ---
 function ModalReceber({ valorSugerido, onCancel, onConfirm }) {
-    return (
-        <div className="fixed inset-0 bg-[#1e293b]/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-           <div className="bg-white rounded-3xl w-full max-w-xs p-8 shadow-2xl animate-in zoom-in duration-300 text-left">
-              <h3 className="font-black text-slate-900 text-xl mb-6">Receber Pagamento</h3>
-              <div className="space-y-5">
-                 <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Recebido</span><input type="number" defaultValue={valorSugerido} id="valPag" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black text-green-600 outline-none focus:border-[#84cc16]" /></label>
-                 <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</span><input type="date" defaultValue={new Date().toISOString().split('T')[0]} id="datPag" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold outline-none focus:border-[#84cc16]" /></label>
-                 <div className="flex gap-3 pt-4">
-                    <button onClick={onCancel} className="flex-1 text-slate-400 font-black text-xs uppercase transition hover:text-slate-600">Cancelar</button>
-                    <button onClick={() => onConfirm(Number(document.getElementById('valPag').value), document.getElementById('datPag').value.split('-').reverse().join('/'))} className="flex-2 bg-[#84cc16] text-[#1e293b] py-4 rounded-2xl font-black shadow-lg flex-1 transition active:scale-95">Confirmar</button>
-                 </div>
-              </div>
-           </div>
-        </div>
-    );
+    return <div className="fixed inset-0 bg-[#1e293b]/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-xs p-8 shadow-2xl animate-in zoom-in duration-300 text-left"><h3 className="font-black text-slate-900 text-xl mb-6">Receber Pagamento</h3><div className="space-y-5"><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Recebido</span><input type="number" defaultValue={valorSugerido} id="valPag" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black text-green-600 outline-none focus:border-[#84cc16]" /></label><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</span><input type="date" defaultValue={new Date().toISOString().split('T')[0]} id="datPag" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold outline-none focus:border-[#84cc16]" /></label><div className="flex gap-3 pt-4"><button onClick={onCancel} className="flex-1 text-slate-400 font-black text-xs uppercase transition hover:text-slate-600">Cancelar</button><button onClick={() => onConfirm(Number(document.getElementById('valPag').value), document.getElementById('datPag').value.split('-').reverse().join('/'))} className="flex-2 bg-[#84cc16] text-[#1e293b] py-4 rounded-2xl font-black shadow-lg flex-1 transition active:scale-95">Confirmar</button></div></div></div></div>;
 }
-
-function ModalInstalacao({ onClose }) {
-    return (
-        <div className="fixed inset-0 bg-[#1e293b]/90 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={onClose}>
-            <div className="bg-white p-10 rounded-[40px] max-w-sm text-center shadow-2xl" onClick={e=>e.stopPropagation()}>
-                <div className="bg-[#84cc16]/20 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 text-5xl">📱</div>
-                <h3 className="font-black text-2xl text-[#1e293b] mb-4 tracking-tighter">CondoLeve no Celular</h3>
-                <p className="text-slate-500 mb-8 font-medium">Use como um App na tela de início:</p>
-                <div className="text-left bg-slate-50 p-6 rounded-3xl space-y-4 mb-8">
-                    <p className="text-xs font-black text-slate-800 flex items-center gap-2 uppercase tracking-tighter"><Smartphone size={16} className="text-[#84cc16]"/> Safari (iPhone):</p>
-                    <p className="text-xs text-slate-500">Toque em <span className="font-bold">Compartilhar</span> e selecione <span className="font-black text-[#1e293b]">Adicionar à Tela de Início</span>.</p>
-                    <div className="h-px bg-slate-200"></div>
-                    <p className="text-xs font-black text-slate-800 flex items-center gap-2 uppercase tracking-tighter"><Smartphone size={16} className="text-blue-500"/> Chrome (Android):</p>
-                    <p className="text-xs text-slate-500">Toque nos <span className="font-bold">três pontinhos</span> e selecione <span className="font-black text-[#1e293b]">Instalar App</span>.</p>
-                </div>
-                <button onClick={onClose} className="bg-[#1e293b] text-white w-full py-5 rounded-2xl font-black shadow-xl transition active:scale-95 uppercase tracking-widest text-xs">Entendido</button>
-            </div>
-        </div>
-    );
+function ModalDetalhesUnidade({ dados, sindica, chavePix, onAdd, onDelete, onClose }) {
+    const [novoValor, setNovoValor] = useState(''); const [novaData, setNovaData] = useState(new Date().toISOString().split('T')[0]); const [modoRecibo, setModoRecibo] = useState(false);
+    if(modoRecibo) return <ModalRecibo dados={{nome: dados.u.moraProprietario ? dados.u.proprietario?.nome : dados.u.inquilino?.nome, valor: dados.totalPago, mes: dados.mes, ano: dados.ano, sindica }} onClose={() => setModoRecibo(false)} />;
+    return <div className="fixed inset-0 bg-[#1e293b]/90 z-[100] flex items-center justify-center p-4 backdrop-blur-sm"><div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl text-left"><div className="flex justify-between items-center mb-6"><div><h3 className="font-black text-xl text-slate-900 tracking-tighter">Extrato {dados.u.numero}</h3><p className="text-xs font-bold text-slate-400 uppercase">{dados.mes}/{dados.ano}</p></div><button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100"><X size={24}/></button></div><div className="space-y-4 mb-6 max-h-48 overflow-y-auto">{dados.pags.map(p => (<div key={p.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100"><div><p className="font-black text-slate-700 text-sm">{formatarMoeda(p.valor)}</p><p className="text-[10px] text-slate-400 font-bold uppercase">Pago em {p.data}</p></div><button onClick={() => onDelete(p.id)} className="text-red-300 hover:text-red-500 p-2"><Trash2 size={16}/></button></div>))}{dados.pags.length === 0 && <p className="text-center text-slate-400 text-xs italic">Nenhum pagamento.</p>}</div><div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-6"><div className="flex justify-between items-center mb-1"><span className="text-[10px] font-black text-slate-400 uppercase">Total Pago</span><span className="font-black text-[#84cc16]">{formatarMoeda(dados.totalPago)}</span></div><div className="flex justify-between items-center"><span className="text-[10px] font-black text-slate-400 uppercase">Valor Devido</span><span className="font-bold text-slate-600 text-xs">{formatarMoeda(dados.valorDevido)}</span></div></div>{dados.totalPago > 0 && <button onClick={() => setModoRecibo(true)} className="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-black text-xs mb-4 flex items-center justify-center gap-2 hover:bg-slate-200 transition"><FileText size={16}/> GERAR RECIBO TOTAL</button>}<div className="pt-6 border-t border-slate-100"><p className="text-[10px] font-black text-slate-400 uppercase mb-2">Adicionar Pagamento (Complemento)</p><div className="flex gap-2"><input type="number" placeholder="Valor" value={novoValor} onChange={e=>setNovoValor(e.target.value)} className="w-1/3 border-2 border-slate-100 p-3 rounded-xl font-bold text-sm outline-none focus:border-[#84cc16]"/><input type="date" value={novaData} onChange={e=>setNovaData(e.target.value)} className="w-1/3 border-2 border-slate-100 p-3 rounded-xl font-bold text-xs outline-none focus:border-[#84cc16]"/><button onClick={() => {if(novoValor) onAdd(Number(novoValor), novaData.split('-').reverse().join('/'))}} className="flex-1 bg-[#1e293b] text-white rounded-xl font-black text-xs shadow-lg"><PlusCircle size={16} className="mx-auto"/></button></div></div></div></div>;
 }
-
-function NavBtn({ active, onClick, icon, label }) {
-   return (
-     <button onClick={onClick} className={`flex-1 flex flex-col items-center gap-1 transition-all py-1 ${active ? 'text-[#1e293b]' : 'text-slate-300'}`}>
-       <div className={`p-2 rounded-2xl transition-all ${active ? 'bg-[#84cc16] shadow-lg shadow-green-500/20 scale-110 -translate-y-2' : ''}`}>{icon}</div>
-       <span className="text-[9px] font-black uppercase tracking-widest">{safeStr(label)}</span>
-     </button>
-   );
+function ModalDetalhesInadimplencia({ dados, onClose }) {
+    return <div className="fixed inset-0 bg-[#1e293b]/90 z-[100] flex items-center justify-center p-4 backdrop-blur-sm"><div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl text-left"><div className="flex justify-between items-center mb-6"><h3 className="font-black text-xl text-slate-900 tracking-tighter">Detalhes da Dívida</h3><button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100"><X size={24}/></button></div><div className="bg-red-50 p-4 rounded-2xl border border-red-100 mb-6 text-center"><p className="text-[10px] font-black text-red-400 uppercase mb-1">Total em Atraso</p><p className="text-3xl font-black text-red-600">{formatarMoeda(dados.total)}</p></div><div className="space-y-3 max-h-60 overflow-y-auto">{dados.meses.map((m, idx) => (<div key={idx} className="flex justify-between items-center border-b border-slate-50 pb-2"><span className="font-black text-slate-700 text-sm">{m.mes}/{m.ano}</span><span className="font-bold text-red-500 text-sm">{formatarMoeda(m.valor)}</span></div>))}</div><button onClick={onClose} className="w-full mt-6 bg-slate-100 text-slate-600 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition">Fechar</button></div></div>;
 }
-
+function SetupWizard({ config, setConfig, setUnidades, onDemo, onComplete, importarBackup }) {
+    const [step, setStep] = useState(1); const [local, setLocal] = useState({...config}); const [lista, setLista] = useState('');
+    return <div className="min-h-screen bg-white flex flex-col p-8 font-sans max-w-md mx-auto text-left"><Logo className="mb-10" /><div className="flex gap-2 mb-10">{[1,2,3].map(i => <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${step >= i ? 'bg-[#1e293b]' : 'bg-slate-100'}`}></div>)}</div>{step === 1 && (<div className="animate-in slide-in-from-bottom-4 duration-500 text-left"><h2 className="text-3xl font-black text-slate-900 mb-2 leading-tight">Vamos montar seu prédio? 🏢</h2><p className="text-slate-500 mb-10 font-medium">Informações básicas para personalizar o CondoLeve.</p><div className="space-y-6"><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nome do Condomínio</span><input value={local.predioNome || ""} onChange={e=>setLocal({...local, predioNome:e.target.value})} placeholder="Ex: Residencial Solar" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black focus:border-[#84cc16] outline-none transition-all"/></label><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase">Seu Nome (Síndico)</span><input value={local.sindicaNome || ""} onChange={e=>setLocal({...local, sindicaNome:e.target.value})} placeholder="Ex: Maria Clara" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black focus:border-[#84cc16] outline-none transition-all"/></label></div></div>)}{step === 2 && (<div className="animate-in slide-in-from-right-4 duration-500 text-left"><h2 className="text-3xl font-black text-slate-900 mb-2 leading-tight">Valores e PIX 💰</h2><p className="text-slate-500 mb-10 font-medium">Como seus moradores devem pagar?</p><div className="space-y-6"><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Condomínio Mensal</span><input type="number" value={safeNum(local.valorCondominio)} onChange={e=>setLocal({...local, valorCondominio:Number(e.target.value)})} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black text-green-600 focus:border-[#84cc16] outline-none"/></label><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chave PIX</span><input value={local.chavePix || ""} onChange={e=>setLocal({...local, chavePix:e.target.value})} placeholder="Para os recibos" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black focus:border-[#84cc16] outline-none"/></label></div></div>)}{step === 3 && (<div className="animate-in slide-in-from-right-4 duration-500 text-left"><h2 className="text-3xl font-black text-slate-900 mb-2 leading-tight">As Unidades 🏠</h2><p className="text-slate-500 mb-10 font-medium">Liste os números dos apartamentos/casas separados por vírgula.</p><textarea value={lista} onChange={e=>setLista(e.target.value)} placeholder="Ex: 101, 102, 201, 202..." className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black h-40 focus:border-[#84cc16] outline-none resize-none transition-all"/></div>)}<div className="mt-auto pt-10 flex flex-col gap-4 text-left"><button onClick={() => { if (step < 3) setStep(step + 1); else { const ids = lista.split(',').map(n => n.trim()).filter(n => n); if (ids.length === 0) return alert("Cadastre unidades."); setUnidades(ids.map(n => ({ id: n, numero: n, proprietario: {nome:'', telefone:''}, moraProprietario: true, status: {} }))); setConfig(local); onComplete(); }}} className="w-full bg-[#1e293b] text-white py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-2 shadow-2xl transition active:scale-95">{step === 3 ? 'FINALIZAR SETUP' : 'PRÓXIMO'} <ArrowRight size={20}/></button>{step === 1 && (<div className="space-y-2"><button onClick={onDemo} className="w-full text-sm font-black text-[#84cc16] py-3 flex items-center justify-center gap-2 hover:bg-slate-50 rounded-xl transition uppercase tracking-tighter"><Sparkles size={16}/> Gerar dados de teste</button><label className="w-full text-xs font-bold text-slate-400 py-3 flex items-center justify-center gap-2 cursor-pointer border-t border-slate-100"><Download size={12}/> RESTAURAR BACKUP (.JSON)<input type="file" accept=".json" onChange={importarBackup} className="hidden"/></label></div>)}</div></div>;
+}
+function ModalInstalacao({ onClose }) { return <div className="fixed inset-0 bg-[#1e293b]/90 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={onClose}><div className="bg-white p-10 rounded-[40px] max-w-sm text-center shadow-2xl" onClick={e=>e.stopPropagation()}><div className="bg-[#84cc16]/20 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 text-5xl">📱</div><h3 className="font-black text-2xl text-[#1e293b] mb-4 tracking-tighter">CondoLeve no Celular</h3><p className="text-slate-500 mb-8 font-medium">Use como um App na tela de início:</p><div className="text-left bg-slate-50 p-6 rounded-3xl space-y-4 mb-8"><p className="text-xs font-black text-slate-800 flex items-center gap-2 uppercase tracking-tighter"><Smartphone size={16} className="text-[#84cc16]"/> Safari (iPhone):</p><p className="text-xs text-slate-500">Toque em <span className="font-bold">Compartilhar</span> e selecione <span className="font-black text-[#1e293b]">Adicionar à Tela de Início</span>.</p><div className="h-px bg-slate-200"></div><p className="text-xs font-black text-slate-800 flex items-center gap-2 uppercase tracking-tighter"><Smartphone size={16} className="text-blue-500"/> Chrome (Android):</p><p className="text-xs text-slate-500">Toque nos <span className="font-bold">três pontinhos</span> e selecione <span className="font-black text-[#1e293b]">Instalar App</span>.</p></div><button onClick={onClose} className="bg-[#1e293b] text-white w-full py-5 rounded-2xl font-black shadow-xl transition active:scale-95 uppercase tracking-widest text-xs">Entendido</button></div></div>; }
+function NavBtn({ active, onClick, icon, label }) { return <button onClick={onClick} className={`flex-1 flex flex-col items-center gap-1 transition-all py-1 ${active ? 'text-[#1e293b]' : 'text-slate-300'}`}><div className={`p-2 rounded-2xl transition-all ${active ? 'bg-[#84cc16] shadow-lg shadow-green-500/20 scale-110 -translate-y-2' : ''}`}>{icon}</div><span className="text-[9px] font-black uppercase tracking-widest">{safeStr(label)}</span></button>; }
 function ModalConfiguracoes({ config, setConfig, unidades, setUnidades, onClose, exportarBackup, importarBackup, calcularInicioOperacao }) {
-  const [bloqueado, setBloqueado] = useState(true);
-  const [local, setLocal] = useState({...config});
-  const salvar = () => { setConfig(local); onClose(); };
-  return (
-    <div className="fixed inset-0 bg-[#1e293b]/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-       <div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl max-h-[90vh] flex flex-col text-left">
-          <div className="flex justify-between items-center mb-6">
-             <h3 className="font-black text-2xl text-slate-900 tracking-tighter">Ajustes</h3>
-             <button onClick={() => setBloqueado(!bloqueado)} className={`p-3 rounded-2xl transition-all ${bloqueado ? 'bg-slate-100 text-slate-400' : 'bg-red-50 text-red-500'}`}>{bloqueado ? <Lock size={20}/> : <Unlock size={20}/>}</button>
-          </div>
-          <div className="flex-1 overflow-y-auto space-y-6">
-             <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nome do Prédio</span><input disabled={bloqueado} value={safeStr(local.predioNome)} onChange={e=>setLocal({...local, predioNome:e.target.value})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold disabled:bg-slate-50 outline-none focus:border-[#84cc16]"/></label>
-             <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsável</span><input disabled={bloqueado} value={safeStr(local.sindicaNome)} onChange={e=>setLocal({...local, sindicaNome:e.target.value})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold disabled:bg-slate-50 outline-none focus:border-[#84cc16]"/></label>
-             
-             {/* CAMPOS NOVOS */}
-             <div className="grid grid-cols-2 gap-3">
-                 <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Mensal</span><input type="number" disabled={bloqueado} value={safeNum(local.valorCondominio)} onChange={e=>setLocal({...local, valorCondominio:Number(e.target.value)})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold disabled:bg-slate-50 outline-none focus:border-[#84cc16]"/></label>
-                 <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dia Venc.</span><input type="number" max="31" min="1" disabled={bloqueado} value={safeNum(local.diaVencimento)} onChange={e=>setLocal({...local, diaVencimento:Number(e.target.value)})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold disabled:bg-slate-50 outline-none focus:border-[#84cc16]"/></label>
-             </div>
-             
-             <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Link do Grupo (WhatsApp)</span><input disabled={bloqueado} value={safeStr(local.linkGrupo)} onChange={e=>setLocal({...local, linkGrupo:e.target.value})} placeholder="https://..." className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold disabled:bg-slate-50 outline-none focus:border-[#84cc16]"/></label>
-             
-             <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chave PIX</span><input disabled={bloqueado} value={safeStr(local.chavePix)} onChange={e=>setLocal({...local, chavePix:e.target.value})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold disabled:bg-slate-50 outline-none focus:border-[#84cc16]"/></label>
-             
-             <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Inicial do Caixa</span><input type="number" disabled={bloqueado} value={safeNum(local.saldoInicial)} onChange={e=>setLocal({...local, saldoInicial:Number(e.target.value)})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold disabled:bg-slate-50 outline-none focus:border-[#84cc16]"/></label>
-
-             <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                 <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Início da Operação (Automático)</p>
-                 <div className="flex items-center justify-between">
-                     <span className="font-bold text-slate-700">{calcularInicioOperacao.split('-').reverse().join('/')}</span>
-                     {!bloqueado && (
-                        <div className="text-right">
-                           <p className="text-[9px] text-slate-400 mb-1">Manual (Opcional)</p>
-                           <input type="date" value={safeStr(local.inicioOperacao)} onChange={e=>setLocal({...local, inicioOperacao:e.target.value})} className="border p-1 rounded font-bold text-xs"/>
-                        </div>
-                     )}
-                 </div>
-                 <p className="text-[9px] text-slate-400 mt-2 leading-tight">Calculado com base no primeiro registro financeiro para evitar cobranças indevidas no passado.</p>
-             </div>
-
-             <div className="pt-6 border-t border-slate-100 space-y-3">
-                <button onClick={exportarBackup} className="bg-[#1e293b] text-white w-full py-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg hover:bg-black transition"><Download size={16}/> BAIXAR BACKUP</button>
-                <label className="bg-slate-50 w-full py-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-pointer border-2 border-dashed border-slate-200 text-slate-500 transition hover:bg-slate-100"><Upload size={16}/> RESTAURAR DADOS<input type="file" accept=".json" onChange={importarBackup} className="hidden" /></label>
-             </div>
-          </div>
-          <div className="mt-8 flex gap-3">
-             <button onClick={onClose} className="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Cancelar</button>
-             <button onClick={salvar} className="flex-1 bg-[#84cc16] text-[#1e293b] rounded-2xl font-black text-xs shadow-xl transition active:scale-95">SALVAR</button>
-          </div>
-       </div>
-    </div>
-  );
+  const [bloqueado, setBloqueado] = useState(true); const [local, setLocal] = useState({...config}); const salvar = () => { setConfig(local); onClose(); };
+  return <div className="fixed inset-0 bg-[#1e293b]/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm"><div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl max-h-[90vh] flex flex-col text-left"><div className="flex justify-between items-center mb-6"><h3 className="font-black text-2xl text-slate-900 tracking-tighter">Ajustes</h3><button onClick={() => setBloqueado(!bloqueado)} className={`p-3 rounded-2xl transition-all ${bloqueado ? 'bg-slate-100 text-slate-400' : 'bg-red-50 text-red-500'}`}>{bloqueado ? <Lock size={20}/> : <Unlock size={20}/>}</button></div><div className="flex-1 overflow-y-auto space-y-6"><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nome do Prédio</span><input disabled={bloqueado} value={safeStr(local.predioNome)} onChange={e=>setLocal({...local, predioNome:e.target.value})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold disabled:bg-slate-50 outline-none focus:border-[#84cc16]"/></label><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsável</span><input disabled={bloqueado} value={safeStr(local.sindicaNome)} onChange={e=>setLocal({...local, sindicaNome:e.target.value})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold disabled:bg-slate-50 outline-none focus:border-[#84cc16]"/></label><div className="grid grid-cols-2 gap-3"><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Mensal</span><input type="number" disabled={bloqueado} value={safeNum(local.valorCondominio)} onChange={e=>setLocal({...local, valorCondominio:Number(e.target.value)})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold disabled:bg-slate-50 outline-none focus:border-[#84cc16]"/></label><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dia Venc.</span><input type="number" max="31" min="1" disabled={bloqueado} value={safeNum(local.diaVencimento)} onChange={e=>setLocal({...local, diaVencimento:Number(e.target.value)})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold disabled:bg-slate-50 outline-none focus:border-[#84cc16]"/></label></div><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Link do Grupo (WhatsApp)</span><input disabled={bloqueado} value={safeStr(local.linkGrupo)} onChange={e=>setLocal({...local, linkGrupo:e.target.value})} placeholder="https://..." className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold disabled:bg-slate-50 outline-none focus:border-[#84cc16]"/></label><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chave PIX</span><input disabled={bloqueado} value={safeStr(local.chavePix)} onChange={e=>setLocal({...local, chavePix:e.target.value})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold disabled:bg-slate-50 outline-none focus:border-[#84cc16]"/></label><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Inicial do Caixa</span><input type="number" disabled={bloqueado} value={safeNum(local.saldoInicial)} onChange={e=>setLocal({...local, saldoInicial:Number(e.target.value)})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold disabled:bg-slate-50 outline-none focus:border-[#84cc16]"/></label><div className="bg-slate-50 p-4 rounded-xl border border-slate-100"><p className="text-[10px] font-black text-slate-400 uppercase mb-2">Início da Operação (Automático)</p><div className="flex items-center justify-between"><span className="font-bold text-slate-700">{calcularInicioOperacao.split('-').reverse().join('/')}</span>{!bloqueado && (<div className="text-right"><p className="text-[9px] text-slate-400 mb-1">Manual (Opcional)</p><input type="date" value={safeStr(local.inicioOperacao)} onChange={e=>setLocal({...local, inicioOperacao:e.target.value})} className="border p-1 rounded font-bold text-xs"/></div>)}</div></div><div className="pt-6 border-t border-slate-100 space-y-3"><button onClick={exportarBackup} className="bg-[#1e293b] text-white w-full py-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg hover:bg-black transition"><Download size={16}/> BAIXAR BACKUP</button><label className="bg-slate-50 w-full py-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-pointer border-2 border-dashed border-slate-200 text-slate-500 transition hover:bg-slate-100"><Upload size={16}/> RESTAURAR DADOS<input type="file" accept=".json" onChange={importarBackup} className="hidden" /></label></div></div><div className="mt-8 flex gap-3"><button onClick={onClose} className="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Cancelar</button><button onClick={salvar} className="flex-1 bg-[#84cc16] text-[#1e293b] rounded-2xl font-black text-xs shadow-xl transition active:scale-95">SALVAR</button></div></div></div>;
 }
-
 function ModalRecibo({ dados, onClose }) {
   const [texto, setTexto] = useState(`🧾 RECIBO CONDOLEVE\nRecebido de: ${safeStr(dados.nome)}\nValor: ${formatarMoeda(dados.valor)}\nRef: ${safeStr(dados.mes)}/${safeStr(dados.ano)}`);
-  return (
-    <div className="fixed inset-0 bg-black/80 z-[150] flex items-center justify-center p-0 md:p-6 print-area backdrop-blur-md">
-       <div className="bg-white w-full h-full md:h-auto md:max-w-md md:rounded-[40px] shadow-2xl flex flex-col relative overflow-hidden text-left">
-          <div className="p-4 border-b flex justify-between items-center bg-slate-50 no-print sticky top-0"><h3 className="font-black text-xs uppercase text-slate-400 tracking-widest">Recibo Digital</h3><button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200"><X size={20}/></button></div>
-          <div className="p-10 overflow-y-auto">
-             <div className="border-4 border-slate-900 p-8 rounded-[32px] text-center bg-white relative">
-                <div className="bg-[#84cc16] text-[#1e293b] absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-6 py-2 rounded-full font-black text-sm shadow-lg tracking-widest uppercase">CONDOLEVE</div>
-                <h2 className="text-3xl font-black uppercase tracking-[0.3em] mb-6 mt-4 text-center">RECIBO</h2>
-                <div className="text-left space-y-6 text-sm">
-                   <div><span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">RECEBEMOS DE</span><p className="font-black text-slate-900 text-xl tracking-tight text-left">{safeStr(dados.nome)}</p></div>
-                   <div><span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">VALOR</span><p className="text-3xl font-black text-green-700 text-left">{formatarMoeda(dados.valor)}</p></div>
-                   <div><span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">REFERENTE A</span><p className="font-bold text-slate-600 text-left">Condomínio {safeStr(dados.mes)}/{safeStr(dados.ano)}</p></div>
-                   <div className="pt-10 text-center border-t border-slate-100">
-                      <p className="font-black text-slate-900 text-lg text-center">{safeStr(dados.sindica)}</p>
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] text-center">ADMINISTRAÇÃO</p>
-                   </div>
-                </div>
-             </div>
-             <div className="mt-8 no-print text-left">
-                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Mensagem WhatsApp</p>
-                <textarea className="w-full border p-3 rounded-xl text-xs h-24 focus:border-[#84cc16] outline-none resize-none" value={texto} onChange={e=>setTexto(e.target.value)}/>
-             </div>
-             <button onClick={onClose} className="w-full mt-4 bg-slate-100 text-slate-500 py-3 rounded-xl font-black text-xs no-print hover:bg-slate-200">VOLTAR / FECHAR</button>
-          </div>
-          <div className="p-6 bg-slate-50 border-t flex justify-end gap-3 no-print sticky bottom-0">
-             <button onClick={() => copiarTextoSeguro(texto)} className="bg-green-100 text-green-700 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition hover:bg-green-200"><Copy size={14}/> COPIAR</button>
-             <button onClick={() => window.print()} className="bg-[#1e293b] text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-2 shadow-xl flex-1 justify-center transition active:scale-95"><Printer size={18}/> IMPRIMIR</button>
-          </div>
-       </div>
-    </div>
-  );
+  return <div className="fixed inset-0 bg-black/80 z-[150] flex items-center justify-center p-0 md:p-6 print-area backdrop-blur-md"><div className="bg-white w-full h-full md:h-auto md:max-w-md md:rounded-[40px] shadow-2xl flex flex-col relative overflow-hidden text-left"><div className="p-4 border-b flex justify-between items-center bg-slate-50 no-print sticky top-0"><h3 className="font-black text-xs uppercase text-slate-400 tracking-widest">Recibo Digital</h3><button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200"><X size={20}/></button></div><div className="p-10 overflow-y-auto"><div className="border-4 border-slate-900 p-8 rounded-[32px] text-center bg-white relative"><div className="bg-[#84cc16] text-[#1e293b] absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-6 py-2 rounded-full font-black text-sm shadow-lg tracking-widest uppercase">CONDOLEVE</div><h2 className="text-3xl font-black uppercase tracking-[0.3em] mb-6 mt-4 text-center">RECIBO</h2><div className="text-left space-y-6 text-sm"><div><span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">RECEBEMOS DE</span><p className="font-black text-slate-900 text-xl tracking-tight text-left">{safeStr(dados.nome)}</p></div><div><span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">VALOR</span><p className="text-3xl font-black text-green-700 text-left">{formatarMoeda(dados.valor)}</p></div><div><span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">REFERENTE A</span><p className="font-bold text-slate-600 text-left">Condomínio {safeStr(dados.mes)}/{safeStr(dados.ano)}</p></div><div className="pt-10 text-center border-t border-slate-100"><p className="font-black text-slate-900 text-lg text-center">{safeStr(dados.sindica)}</p><p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] text-center">ADMINISTRAÇÃO</p></div></div></div><div className="mt-8 no-print text-left"><p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Mensagem WhatsApp</p><textarea className="w-full border p-3 rounded-xl text-xs h-24 focus:border-[#84cc16] outline-none resize-none" value={texto} onChange={e=>setTexto(e.target.value)}/></div><button onClick={onClose} className="w-full mt-4 bg-slate-100 text-slate-500 py-3 rounded-xl font-black text-xs no-print hover:bg-slate-200">VOLTAR / FECHAR</button></div><div className="p-6 bg-slate-50 border-t flex justify-end gap-3 no-print sticky bottom-0"><button onClick={() => copiarTextoSeguro(texto)} className="bg-green-100 text-green-700 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition hover:bg-green-200"><Copy size={14}/> COPIAR</button><button onClick={() => window.print()} className="bg-[#1e293b] text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-2 shadow-xl flex-1 justify-center transition active:scale-95"><Printer size={18}/> IMPRIMIR</button></div></div></div>;
 }
-
 function ModalDespesa({ onClose, onSave, despesaParaEditar = null }) {
-  const [desc, setDesc] = useState(despesaParaEditar ? despesaParaEditar.descricao : '');
-  const [val, setVal] = useState(despesaParaEditar ? despesaParaEditar.valor : '');
-  const [cat, setCat] = useState(despesaParaEditar ? despesaParaEditar.categoria : 'Outros');
-  const [data, setData] = useState(despesaParaEditar ? despesaParaEditar.data.split('/').reverse().join('-') : new Date().toISOString().split('T')[0]);
-  return (
-    <div className="fixed inset-0 bg-[#1e293b]/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-       <div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl animate-in zoom-in duration-300 text-left">
-          <h3 className="font-black text-red-600 text-xl mb-6 flex items-center gap-2 tracking-tighter"><ArrowDownCircle/> {despesaParaEditar ? 'Editar' : 'Lançar'} Despesa</h3>
-          <div className="space-y-4">
-             <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">O que foi pago?</span><input placeholder="Ex: Manutenção Portão" value={desc} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black outline-none focus:border-red-400 transition-all" onChange={e=>setDesc(e.target.value)}/></label>
-             <div className="flex gap-3 text-left">
-                <label className="w-1/2 block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Valor</span><input type="number" placeholder="0,00" value={val} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black text-red-600 outline-none focus:border-red-400" onChange={e=>setVal(e.target.value)}/></label>
-                <label className="w-1/2 block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Data</span><input type="date" value={data} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold text-xs outline-none" onChange={e=>setData(e.target.value)}/></label>
-             </div>
-             <label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Categoria</span><select className="w-full border-2 border-slate-100 p-4 rounded-2xl bg-white font-black outline-none focus:border-red-400" onChange={e=>setCat(e.target.value)} value={cat}>{CATEGORIAS_DESPESA.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
-             <div className="flex gap-2 pt-6"><button onClick={onClose} className="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Cancelar</button><button onClick={() => { if(desc && val) onSave({descricao:desc, valor:Number(val), categoria:cat, data:data.split('-').reverse().join('/')}) }} className="flex-2 bg-red-500 text-white py-4 rounded-2xl font-black shadow-xl flex-1 transition active:scale-95">SALVAR</button></div>
-          </div>
-       </div>
-    </div>
-  );
+  const [desc, setDesc] = useState(despesaParaEditar ? despesaParaEditar.descricao : ''); const [val, setVal] = useState(despesaParaEditar ? despesaParaEditar.valor : ''); const [cat, setCat] = useState(despesaParaEditar ? despesaParaEditar.categoria : 'Outros'); const [data, setData] = useState(despesaParaEditar ? despesaParaEditar.data.split('/').reverse().join('-') : new Date().toISOString().split('T')[0]);
+  return <div className="fixed inset-0 bg-[#1e293b]/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm"><div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl animate-in zoom-in duration-300 text-left"><h3 className="font-black text-red-600 text-xl mb-6 flex items-center gap-2 tracking-tighter"><ArrowDownCircle/> {despesaParaEditar ? 'Editar' : 'Lançar'} Despesa</h3><div className="space-y-4"><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">O que foi pago?</span><input placeholder="Ex: Manutenção Portão" value={desc} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black outline-none focus:border-red-400 transition-all" onChange={e=>setDesc(e.target.value)}/></label><div className="flex gap-3 text-left"><label className="w-1/2 block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Valor</span><input type="number" placeholder="0,00" value={val} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black text-red-600 outline-none focus:border-red-400" onChange={e=>setVal(e.target.value)}/></label><label className="w-1/2 block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Data</span><input type="date" value={data} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold text-xs outline-none" onChange={e=>setData(e.target.value)}/></label></div><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Categoria</span><select className="w-full border-2 border-slate-100 p-4 rounded-2xl bg-white font-black outline-none focus:border-red-400" onChange={e=>setCat(e.target.value)} value={cat}>{CATEGORIAS_DESPESA.map(c=><option key={c} value={c}>{c}</option>)}</select></label><div className="flex gap-2 pt-6"><button onClick={onClose} className="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Cancelar</button><button onClick={() => { if(desc && val) onSave({descricao:desc, valor:Number(val), categoria:cat, data:data.split('-').reverse().join('/')}) }} className="flex-2 bg-red-500 text-white py-4 rounded-2xl font-black shadow-xl flex-1 transition active:scale-95">SALVAR</button></div></div></div></div>;
 }
-
 function ModalEditarUnidade({ u, onClose, onSave }) {
-  const [dados, setDados] = useState({...u});
-  const up = (field, val, isProp) => { 
-      if(isProp) setDados({...dados, proprietario:{...(dados.proprietario || {}), [field]:val}}); 
-      else setDados({...dados, inquilino:{...(dados.inquilino || {}), [field]:val}}); 
-  };
-  return (
-    <div className="fixed inset-0 bg-[#1e293b]/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-       <div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl text-left">
-          <h3 className="font-black text-2xl mb-6 tracking-tighter text-slate-900 text-left">Unidade {safeStr(u.numero)}</h3>
-          <div className="space-y-6">
-             <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100 text-left">
-                <p className="text-[10px] font-black text-[#1e293b] uppercase mb-3 tracking-widest opacity-50 text-left">Dono da Unidade</p>
-                <input placeholder="Nome" value={safeStr(dados.proprietario?.nome)} onChange={e=>up('nome', e.target.value, true)} className="w-full border p-3 rounded-xl font-bold text-sm mb-3 outline-none focus:border-[#84cc16]"/>
-                <input placeholder="WhatsApp" value={safeStr(dados.proprietario?.telefone)} onChange={e=>up('telefone', e.target.value, true)} className="w-full border p-3 rounded-xl font-bold text-sm outline-none focus:border-[#84cc16]"/>
-             </div>
-             <label className="flex items-center gap-3 p-4 border-2 rounded-2xl bg-[#84cc16]/5 cursor-pointer border-[#84cc16]/20 transition hover:bg-[#84cc16]/10 text-left">
-                 <input type="checkbox" checked={dados.moraProprietario} onChange={e=>setDados({...dados, moraProprietario:e.target.checked})} className="w-6 h-6 rounded-md"/> 
-                 <span className="text-xs font-black text-[#1e293b] uppercase tracking-tighter text-left">Residência Própria?</span>
-             </label>
-             {!dados.moraProprietario && (
-                 <div className="bg-orange-50/50 p-5 rounded-3xl border border-orange-100 animate-in slide-in-from-top-2 text-left">
-                    <p className="text-[10px] font-black text-orange-600 uppercase mb-3 tracking-widest opacity-60 text-left">Morador / Inquilino</p>
-                    <input placeholder="Nome" value={safeStr(dados.inquilino?.nome)} onChange={e=>up('nome', e.target.value, false)} className="w-full border p-3 rounded-xl font-bold text-sm mb-3 outline-none"/>
-                    <input placeholder="Telefone" value={safeStr(dados.inquilino?.telefone)} onChange={e=>up('telefone', e.target.value, false)} className="w-full border p-3 rounded-xl font-bold text-sm outline-none"/>
-                 </div>
-             )}
-             <div className="flex gap-3 pt-4"><button onClick={onClose} className="flex-1 text-slate-400 font-black text-xs uppercase">Cancelar</button><button onClick={() => onSave(dados)} className="flex-1 bg-[#1e293b] text-white py-4 rounded-2xl font-black shadow-xl transition active:scale-95">SALVAR</button></div>
-          </div>
-       </div>
-    </div>
-  );
+  const [dados, setDados] = useState({...u}); const up = (field, val, isProp) => { if(isProp) setDados({...dados, proprietario:{...(dados.proprietario || {}), [field]:val}}); else setDados({...dados, inquilino:{...(dados.inquilino || {}), [field]:val}}); };
+  return <div className="fixed inset-0 bg-[#1e293b]/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm"><div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl text-left"><h3 className="font-black text-2xl mb-6 tracking-tighter text-slate-900 text-left">Unidade {safeStr(u.numero)}</h3><div className="space-y-6"><div className="bg-slate-50 p-5 rounded-3xl border border-slate-100 text-left"><p className="text-[10px] font-black text-[#1e293b] uppercase mb-3 tracking-widest opacity-50 text-left">Dono da Unidade</p><input placeholder="Nome" value={safeStr(dados.proprietario?.nome)} onChange={e=>up('nome', e.target.value, true)} className="w-full border p-3 rounded-xl font-bold text-sm mb-3 outline-none focus:border-[#84cc16]"/><input placeholder="WhatsApp" value={safeStr(dados.proprietario?.telefone)} onChange={e=>up('telefone', e.target.value, true)} className="w-full border p-3 rounded-xl font-bold text-sm outline-none focus:border-[#84cc16]"/></div><label className="flex items-center gap-3 p-4 border-2 rounded-2xl bg-[#84cc16]/5 cursor-pointer border-[#84cc16]/20 transition hover:bg-[#84cc16]/10 text-left"><input type="checkbox" checked={dados.moraProprietario} onChange={e=>setDados({...dados, moraProprietario:e.target.checked})} className="w-6 h-6 rounded-md"/> <span className="text-xs font-black text-[#1e293b] uppercase tracking-tighter text-left">Residência Própria?</span></label>{!dados.moraProprietario && (<div className="bg-orange-50/50 p-5 rounded-3xl border border-orange-100 animate-in slide-in-from-top-2 text-left"><p className="text-[10px] font-black text-orange-600 uppercase mb-3 tracking-widest opacity-60 text-left">Morador / Inquilino</p><input placeholder="Nome" value={safeStr(dados.inquilino?.nome)} onChange={e=>up('nome', e.target.value, false)} className="w-full border p-3 rounded-xl font-bold text-sm mb-3 outline-none"/><input placeholder="Telefone" value={safeStr(dados.inquilino?.telefone)} onChange={e=>up('telefone', e.target.value, false)} className="w-full border p-3 rounded-xl font-bold text-sm outline-none"/></div>)}<div className="flex gap-3 pt-4"><button onClick={onClose} className="flex-1 text-slate-400 font-black text-xs uppercase">Cancelar</button><button onClick={() => onSave(dados)} className="flex-1 bg-[#1e293b] text-white py-4 rounded-2xl font-black shadow-xl transition active:scale-95">SALVAR</button></div></div></div></div>;
 }
-
 function ModalRelatorioCompleto({ mes, ano, receita, gasto, pagamentos, despesas, sindica, unidades, onClose, config }) {
-  const gerarResumoZap = () => {
-      const saldo = receita - gasto; 
-      const emojiSaldo = saldo >= 0 ? "✅" : "🔻";
-      const txt = `📊 *PRESTAÇÃO DE CONTAS - ${mes}/${ano}*\n\n💰 *Receitas:* ${formatarMoeda(receita)}\n💸 *Despesas:* ${formatarMoeda(gasto)}\n────────────────\n${emojiSaldo} *SALDO DO MÊS:* ${formatarMoeda(saldo)}\n\nAtt, ${sindica}`;
-      copiarTextoSeguro(txt);
-  };
-
+  const gerarResumoZap = () => { const saldo = receita - gasto; const emojiSaldo = saldo >= 0 ? "✅" : "🔻"; const txt = `📊 *PRESTAÇÃO DE CONTAS - ${mes}/${ano}*\n\n💰 *Receitas:* ${formatarMoeda(receita)}\n💸 *Despesas:* ${formatarMoeda(gasto)}\n────────────────\n${emojiSaldo} *SALDO DO MÊS:* ${formatarMoeda(saldo)}\n\nAtt, ${sindica}`; copiarTextoSeguro(txt); };
   const getMesAnoValor = (m, a) => a * 12 + MESES.indexOf(m);
-  
-  // Lista unificada de unidades
   const listaUnificada = useMemo(() => {
      return unidades.map(u => {
-         const pags = Array.isArray(u.status[`${mes}-${ano}`]) ? u.status[`${mes}-${ano}`] : (u.status[`${mes}-${ano}`] ? [u.status[`${mes}-${ano}`]] : []);
-         const totalPago = pags.reduce((acc, p) => acc + safeNum(p.valor), 0);
-         const valorDevido = safeNum(config.valorCondominio);
-         const pendente = valorDevido - totalPago;
-         
-         let status = 'pago';
-         if (totalPago === 0) status = 'pendente';
-         else if (totalPago < valorDevido) status = 'parcial';
-
+         const pags = Array.isArray(u.status[`${mes}-${ano}`]) ? u.status[`${mes}-${ano}`] : (u.status[`${mes}-${ano}`] ? [u.status[`${mes}-${ano}`]] : []); const totalPago = pags.reduce((acc, p) => acc + safeNum(p.valor), 0); const valorDevido = safeNum(config.valorCondominio); const pendente = valorDevido - totalPago; let status = 'pago'; if (totalPago === 0) status = 'pendente'; else if (totalPago < valorDevido) status = 'parcial';
          return { ...u, totalPago, pendente, status };
-     }).sort((a,b) => {
-         // Ordena pendentes primeiro
-         if (a.status === 'pendente' && b.status !== 'pendente') return -1;
-         if (a.status !== 'pendente' && b.status === 'pendente') return 1;
-         return 0;
-     });
+     }).sort((a,b) => { if (a.status === 'pendente' && b.status !== 'pendente') return -1; if (a.status !== 'pendente' && b.status === 'pendente') return 1; return 0; });
   }, [unidades, mes, ano, config]);
-
-   return (
-      <div className="fixed inset-0 bg-[#1e293b]/90 z-[100] flex items-center justify-center p-0 md:p-6 print-area backdrop-blur-md">
-        <div className="bg-white w-full h-full md:h-auto md:max-h-[95vh] md:max-w-3xl md:rounded-[40px] shadow-2xl overflow-y-auto flex flex-col relative text-left">
-            <div className="p-6 border-b flex justify-between items-center bg-slate-50 no-print sticky top-0 z-10 text-left"><h3 className="font-black text-xs uppercase text-slate-400 tracking-[0.3em] text-left">Prestação de Contas</h3><button onClick={onClose} className="p-3 bg-white rounded-full shadow-sm transition hover:bg-slate-100"><X size={20}/></button></div>
-            <div className="p-12 text-center">
-                <Logo className="justify-center mb-8" />
-                <h1 className="text-4xl font-black uppercase mb-2 tracking-tight text-center">Fechamento do Mês</h1>
-                <p className="font-bold text-slate-400 mb-12 uppercase tracking-[0.4em] text-xs text-center">{safeStr(mes)} de {safeStr(ano)}</p>
-                
-                {/* Resumo */}
-                <div className="grid grid-cols-3 gap-6 mb-12">
-                    <div className="p-6 bg-green-50 rounded-3xl border border-green-100 flex flex-col items-center"><span className="text-[9px] font-black uppercase text-green-800 mb-2 tracking-widest text-center">Receitas</span><span className="font-black text-xl text-green-700">{formatarMoeda(receita)}</span></div>
-                    <div className="p-6 bg-red-50 rounded-3xl border border-red-100 flex flex-col items-center"><span className="text-[9px] font-black uppercase text-red-800 mb-2 tracking-widest text-center">Despesas</span><span className="font-black text-xl text-red-700">-{formatarMoeda(gasto)}</span></div>
-                    <div className="p-6 bg-[#1e293b] rounded-3xl flex flex-col items-center shadow-xl"><span className="text-[9px] font-black uppercase text-white/50 mb-2 tracking-widest text-center">Saldo Mês</span><span className={`font-black text-xl ${(receita-gasto)>=0?'text-[#84cc16]':'text-red-400'}`}>{formatarMoeda(receita-gasto)}</span></div>
-                </div>
-                
-                {/* Detalhe das Despesas */}
-                <div className="text-left space-y-8 text-left mb-10">
-                    <h4 className="font-black text-slate-400 uppercase text-[10px] border-b tracking-[0.5em] pb-2 text-left">Saídas (Despesas)</h4>
-                    <div className="space-y-4 text-left">
-                        {despesas.length > 0 ? despesas.map(d => (
-                            <div key={d.id} className="flex justify-between text-sm py-3 border-b border-slate-50 text-left"><span className="font-black text-slate-800 tracking-tight text-left">{safeStr(d.descricao)}</span><span className="font-black text-red-600">-{formatarMoeda(d.valor)}</span></div>
-                        )) : <p className="text-slate-400 text-xs italic">Nenhuma despesa lançada.</p>}
-                    </div>
-                </div>
-
-                {/* Situação das Unidades (Unificado) */}
-                <div className="text-left space-y-8 text-left mb-10">
-                    <h4 className="font-black text-slate-400 uppercase text-[10px] border-b tracking-[0.5em] pb-2 text-left">Situação das Unidades</h4>
-                    <div className="space-y-4 text-left">
-                        {listaUnificada.map(u => (
-                            <div key={u.id} className="flex justify-between text-sm py-3 border-b border-slate-50 text-left items-center">
-                                <span className="font-black text-slate-800 tracking-tight text-left">Unidade {safeStr(u.numero)}</span>
-                                {u.status === 'pago' && <span className="font-black text-green-600 text-xs bg-green-50 px-2 py-1 rounded-lg uppercase tracking-wider flex items-center gap-1"><Check size={12}/> Pago</span>}
-                                {u.status === 'parcial' && <span className="font-black text-yellow-600 text-xs bg-yellow-50 px-2 py-1 rounded-lg uppercase tracking-wider flex items-center gap-1">Parcial (Restam {formatarMoeda(u.pendente)})</span>}
-                                {u.status === 'pendente' && <span className="font-black text-red-500 text-xs bg-red-50 px-2 py-1 rounded-lg uppercase tracking-wider flex items-center gap-1"><AlertTriangle size={12}/> Pendente</span>}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="mt-20 pt-10 border-t border-slate-100 text-center">
-                   <p className="font-black text-xl text-[#1e293b] text-center">{safeStr(sindica)}</p>
-                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.5em] mt-2 text-center">Administração do Condomínio</p>
-                </div>
-            </div>
-            <div className="p-6 bg-slate-50 border-t flex justify-end gap-4 no-print sticky bottom-0">
-               <button onClick={gerarResumoZap} className="bg-green-600 text-white px-8 py-5 rounded-2xl font-black text-sm shadow-xl flex items-center gap-3 hover:bg-green-700 transition flex-1 justify-center"><MessageCircle size={20}/> GRUPO WHATSAPP</button>
-               <button onClick={() => window.print()} className="bg-[#1e293b] text-white px-8 py-5 rounded-2xl font-black text-sm flex items-center gap-3 shadow-xl hover:bg-black transition flex-1 justify-center"><Printer size={20}/> PDF</button>
-            </div>
-        </div>
-      </div>
-   );
+   return <div className="fixed inset-0 bg-[#1e293b]/90 z-[100] flex items-center justify-center p-0 md:p-6 print-area backdrop-blur-md"><div className="bg-white w-full h-full md:h-auto md:max-h-[95vh] md:max-w-3xl md:rounded-[40px] shadow-2xl overflow-y-auto flex flex-col relative text-left"><div className="p-6 border-b flex justify-between items-center bg-slate-50 no-print sticky top-0 z-10 text-left"><h3 className="font-black text-xs uppercase text-slate-400 tracking-[0.3em] text-left">Prestação de Contas</h3><button onClick={onClose} className="p-3 bg-white rounded-full shadow-sm transition hover:bg-slate-100"><X size={20}/></button></div><div className="p-12 text-center"><Logo className="justify-center mb-8" /><h1 className="text-4xl font-black uppercase mb-2 tracking-tight text-center">Fechamento do Mês</h1><p className="font-bold text-slate-400 mb-12 uppercase tracking-[0.4em] text-xs text-center">{safeStr(mes)} de {safeStr(ano)}</p><div className="grid grid-cols-3 gap-6 mb-12"><div className="p-6 bg-green-50 rounded-3xl border border-green-100 flex flex-col items-center"><span className="text-[9px] font-black uppercase text-green-800 mb-2 tracking-widest text-center">Receitas</span><span className="font-black text-xl text-green-700">{formatarMoeda(receita)}</span></div><div className="p-6 bg-red-50 rounded-3xl border border-red-100 flex flex-col items-center"><span className="text-[9px] font-black uppercase text-red-800 mb-2 tracking-widest text-center">Despesas</span><span className="font-black text-xl text-red-700">-{formatarMoeda(gasto)}</span></div><div className="p-6 bg-[#1e293b] rounded-3xl flex flex-col items-center shadow-xl"><span className="text-[9px] font-black uppercase text-white/50 mb-2 tracking-widest text-center">Saldo Mês</span><span className={`font-black text-xl ${(receita-gasto)>=0?'text-[#84cc16]':'text-red-400'}`}>{formatarMoeda(receita-gasto)}</span></div></div><div className="text-left space-y-8 text-left mb-10"><h4 className="font-black text-slate-400 uppercase text-[10px] border-b tracking-[0.5em] pb-2 text-left">Saídas (Despesas)</h4><div className="space-y-4 text-left">{despesas.length > 0 ? despesas.map(d => (<div key={d.id} className="flex justify-between text-sm py-3 border-b border-slate-50 text-left"><span className="font-black text-slate-800 tracking-tight text-left">{safeStr(d.descricao)}</span><span className="font-black text-red-600">-{formatarMoeda(d.valor)}</span></div>)) : <p className="text-slate-400 text-xs italic">Nenhuma despesa lançada.</p>}</div></div><div className="text-left space-y-8 text-left mb-10"><h4 className="font-black text-slate-400 uppercase text-[10px] border-b tracking-[0.5em] pb-2 text-left">Situação das Unidades</h4><div className="space-y-4 text-left">{listaUnificada.map(u => (<div key={u.id} className="flex justify-between text-sm py-3 border-b border-slate-50 text-left items-center"><span className="font-black text-slate-800 tracking-tight text-left">Unidade {safeStr(u.numero)}</span>{u.status === 'pago' && <span className="font-black text-green-600 text-xs bg-green-50 px-2 py-1 rounded-lg uppercase tracking-wider flex items-center gap-1"><Check size={12}/> Pago</span>}{u.status === 'parcial' && <span className="font-black text-yellow-600 text-xs bg-yellow-50 px-2 py-1 rounded-lg uppercase tracking-wider flex items-center gap-1">Parcial (Restam {formatarMoeda(u.pendente)})</span>}{u.status === 'pendente' && <span className="font-black text-red-500 text-xs bg-red-50 px-2 py-1 rounded-lg uppercase tracking-wider flex items-center gap-1"><AlertTriangle size={12}/> Pendente</span>}</div>))}</div></div><div className="mt-20 pt-10 border-t border-slate-100 text-center"><p className="font-black text-xl text-[#1e293b] text-center">{safeStr(sindica)}</p><p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.5em] mt-2 text-center">Administração do Condomínio</p></div></div><div className="p-6 bg-slate-50 border-t flex justify-end gap-4 no-print sticky bottom-0"><button onClick={gerarResumoZap} className="bg-green-600 text-white px-8 py-5 rounded-2xl font-black text-sm shadow-xl flex items-center gap-3 hover:bg-green-700 transition flex-1 justify-center"><MessageCircle size={20}/> GRUPO WHATSAPP</button><button onClick={() => window.print()} className="bg-[#1e293b] text-white px-8 py-5 rounded-2xl font-black text-sm flex items-center gap-3 shadow-xl hover:bg-black transition flex-1 justify-center"><Printer size={20}/> PDF</button></div></div></div>;
 }
-
-function ModalZeladoria({ patrimonio, setPatrimonio, onClose }) {
-  const [item, setItem] = useState('');
-  const [data, setData] = useState('');
-  return (
-    <div className="fixed inset-0 bg-[#1e293b]/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl h-[550px] flex flex-col text-left">
-          <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="font-black text-2xl text-[#1e293b] flex items-center gap-3 tracking-tighter text-left"><Hammer className="text-[#84cc16]" size={24}/> Zeladoria</h3><button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100"><X size={24}/></button></div>
-          <div className="flex-1 overflow-y-auto space-y-4 text-left">
-             {patrimonio.map(p => (<div key={p.id} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left"><div><p className="font-black text-slate-800 text-sm text-left">{safeStr(p.item)}</p><p className="text-[10px] text-orange-600 font-black tracking-widest mt-1 uppercase text-left">Vence em: {safeStr(p.data).split('-').reverse().join('/')}</p></div><button onClick={() => setPatrimonio(patrimonio.filter(x=>x.id!==p.id))} className="text-slate-300 hover:text-red-500 transition"><Trash2 size={18}/></button></div>))}
-             {patrimonio.length === 0 && <div className="text-center py-12 text-slate-300 italic text-sm">Controle de manutenções e vencimentos.</div>}
-          </div>
-          <div className="mt-6 pt-6 border-t space-y-4 text-left">
-             <input placeholder="Ex: Extintores, Seguro..." value={item} onChange={e=>setItem(e.target.value)} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black outline-none focus:border-[#84cc16]"/>
-             <div className="flex gap-3 text-left"><input type="date" value={data} onChange={e=>setData(e.target.value)} className="flex-1 border-2 border-slate-100 p-4 rounded-2xl font-bold outline-none focus:border-[#84cc16]"/><button onClick={() => { if(item && data) { setPatrimonio([...patrimonio, {id: Date.now(), item, data}]); setItem(''); setData(''); } }} className="bg-[#84cc16] text-[#1e293b] px-6 rounded-2xl font-black shadow-lg transition active:scale-95">ADD</button></div>
-          </div>
-      </div>
-    </div>
-  );
-}
-
 function ModalUpsell({ onClose }) {
-    return (
-      <div className="fixed inset-0 bg-[#1e293b]/95 z-[200] flex items-center justify-center p-6 backdrop-blur-xl">
-         <div className="bg-white rounded-[48px] w-full max-w-sm p-10 text-center relative shadow-2xl animate-in zoom-in duration-500">
-            <button onClick={onClose} className="absolute top-8 right-8 text-slate-300 hover:text-slate-500"><X size={28}/></button>
-            <div className="bg-[#84cc16] w-20 h-20 rounded-[30px] flex items-center justify-center mx-auto mb-8 shadow-xl shadow-green-500/20"><Star size={40} className="text-[#1e293b] fill-[#1e293b]"/></div>
-            <h2 className="text-3xl font-black text-[#1e293b] mb-4 tracking-tighter leading-none">CondoLeve PRO</h2>
-            <p className="text-slate-500 mb-10 font-medium px-4">Cloud backup, acesso para moradores e relatórios detalhados.</p>
-            <button onClick={() => alert("Em breve para assinantes!")} className="w-full py-5 bg-[#1e293b] text-white rounded-[24px] font-black text-xl shadow-2xl transition active:scale-95">SAIBA MAIS</button>
-         </div>
-      </div>
-    );
+    return <div className="fixed inset-0 bg-[#1e293b]/95 z-[200] flex items-center justify-center p-6 backdrop-blur-xl"><div className="bg-white rounded-[48px] w-full max-w-sm p-10 text-center relative shadow-2xl animate-in zoom-in duration-500"><button onClick={onClose} className="absolute top-8 right-8 text-slate-300 hover:text-slate-500"><X size={28}/></button><div className="bg-[#84cc16] w-20 h-20 rounded-[30px] flex items-center justify-center mx-auto mb-8 shadow-xl shadow-green-500/20"><Star size={40} className="text-[#1e293b] fill-[#1e293b]"/></div><h2 className="text-3xl font-black text-[#1e293b] mb-4 tracking-tighter leading-none">CondoLeve PRO</h2><p className="text-slate-500 mb-10 font-medium px-4">Cloud backup, acesso para moradores e relatórios detalhados.</p><button onClick={() => alert("Em breve para assinantes!")} className="w-full py-5 bg-[#1e293b] text-white rounded-[24px] font-black text-xl shadow-2xl transition active:scale-95">SAIBA MAIS</button></div></div>;
 }
