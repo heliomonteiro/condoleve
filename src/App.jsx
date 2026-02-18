@@ -21,10 +21,11 @@ import {
 // --- CONFIGURAÇÃO SUPABASE ---
 const SUPABASE_URL = "https://jtoubtxumtfwrolxrbpf.supabase.co"; 
 const SUPABASE_KEY = "sb_publishable_jRaZSrBV1Q75Ftj7OVd_Jg_tozzOju3"; 
-const APP_VERSION = "4.1.5-final";
+const APP_VERSION = "4.1.6-final";
 
 // --- URLS DOS LOGOS ---
-const LOGO_ICON = "https://res.cloudinary.com/dgt5d9xfq/image/upload/v1771271522/CondoLeve_logo_compacto_cizyld.png";
+// Nova logo fornecida pelo usuário
+const LOGO_ICON = "https://res.cloudinary.com/dgt5d9xfq/image/upload/v1771380642/logo_compacta_sem_fundo_q97itc.png";
 const LOGO_SIMPLE = "https://res.cloudinary.com/dgt5d9xfq/image/upload/v1771271358/CondoLeve_logo_sem_slogan_skb3zu.png";
 const LOGO_FULL = "https://res.cloudinary.com/dgt5d9xfq/image/upload/v1771267774/CondoLeve_logo_com_slogan_qfgedb.png";
 
@@ -249,6 +250,7 @@ function SistemaCondominio({ supabase, session, showToast, inviteCode, setInvite
   const [unidadeMorador, setUnidadeMorador] = useState(null);
   const timeoutRef = useRef(null);
   const [processandoConvite, setProcessandoConvite] = useState(false);
+  const [confirmacao, setConfirmacao] = useState(null); // Estado para o modal de confirmação customizado
 
   useMetaTags(config);
 
@@ -633,6 +635,7 @@ function SistemaCondominio({ supabase, session, showToast, inviteCode, setInvite
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><RefreshCw className="animate-spin text-[#84cc16]"/><p className="ml-4 font-black text-[#1e293b]">Carregando...</p></div>;
 
   // --- MODO MORADOR RENDER ---
+  // AVISO: Modo Morador agora precisa ter acesso aos modals dentro dele para funcionar com z-index correto
   if (modoMorador && unidadeMorador) {
     return <ModoMorador 
               unidade={unidadeMorador} 
@@ -648,7 +651,6 @@ function SistemaCondominio({ supabase, session, showToast, inviteCode, setInvite
               enquetes={enquetes}
               setEnquetes={setEnquetes}
               patrimonio={patrimonio}
-              setModalRecibo={setModalRecibo}
               showToast={showToast}
               copiarTexto={copiarTexto}
             />;
@@ -786,7 +788,7 @@ function SistemaCondominio({ supabase, session, showToast, inviteCode, setInvite
                      <div className="flex gap-1 items-center">
                        <button onClick={() => toggleDespesaPaga(d)} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition flex items-center gap-1 shadow-sm ${isPago ? 'bg-slate-100 text-slate-400 hover:bg-slate-200' : 'bg-green-500 text-white hover:bg-green-600'}`}>{isPago ? <RotateCcw size={12}/> : <Check size={12}/>} {isPago ? 'DESFAZER' : 'PAGAR'}</button>
                        <button onClick={() => setModalEditarDespesa(d)} className="p-2 text-slate-300 hover:text-blue-500"><Edit size={16}/></button>
-                       <button onClick={() => { if(confirm("Apagar conta?")) { setDespesas(despesas.filter(x=>x.id!==d.id)); showToast("Conta apagada."); } }} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>
+                       <button onClick={() => setConfirmacao({ titulo: "Apagar Conta?", texto: "Tem certeza que deseja apagar este lançamento?", onConfirm: () => { setDespesas(despesas.filter(x=>x.id!==d.id)); showToast("Conta apagada."); setConfirmacao(null); } })} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>
                      </div>
                    </div>
                  </Card>
@@ -914,6 +916,7 @@ function SistemaCondominio({ supabase, session, showToast, inviteCode, setInvite
       </nav>
 
       {/* MODAIS COMPLETO */}
+      {confirmacao && <ModalConfirmacao data={confirmacao} onClose={() => setConfirmacao(null)} />}
       {modalPagamento && <ModalReceber valorSugerido={modalPagamento.valorSugerido} onCancel={() => setModalPagamento(null)} onConfirm={(v,d) => { adicionarPagamento(modalPagamento.unidadeId, v, d); setModalPagamento(null); }} />}
       {modalDetalhesUnidade && <ModalDetalhesUnidade dados={modalDetalhesUnidade} sindica={config.sindicaNome} chavePix={config.chavePix} onAdd={(v,d) => { adicionarPagamento(modalDetalhesUnidade.u.id, v, d); setModalDetalhesUnidade(null); }} onDelete={(pid) => { removerPagamento(modalDetalhesUnidade.u.id, pid, `${modalDetalhesUnidade.mes}-${modalDetalhesUnidade.ano}`); setModalDetalhesUnidade(null); }} onClose={() => setModalDetalhesUnidade(null)} copiarTexto={copiarTexto} fmt={fmt} />}
       {modalDetalhesInad && <ModalDetalhesInadimplencia dados={modalDetalhesInad} onClose={() => setModalDetalhesInad(null)} fmt={fmt} enviarCobranca={enviarCobranca} config={config} />}
@@ -940,11 +943,11 @@ function SistemaCondominio({ supabase, session, showToast, inviteCode, setInvite
           setModalNovaDespesa(false); 
       }} />}
       {modalEditarDespesa && <ModalDespesa supabase={supabase} planoAtual={planoAtivo} categorias={config.categorias} abrirUpgrade={() => setModalUpgrade(true)} despesaParaEditar={modalEditarDespesa} onClose={() => setModalEditarDespesa(null)} onSave={(d) => { setDespesas(despesas.map(item => item.id === modalEditarDespesa.id ? { ...d, id: item.id, mes: item.mes, ano: item.ano } : item)); setModalEditarDespesa(null); showToast('Conta atualizada!'); }} />}
-      {modalEditar && <ModalEditarUnidade u={modalEditar} onClose={() => setModalEditar(null)} onSave={(novo) => { setUnidades(unidades.map(x => x.id === novo.id ? novo : x)); setModalEditar(null); showToast('Unidade salva!'); }} ativarModoMorador={() => ativarModoMorador(modalEditar)} showToast={showToast} config={config} copiarTexto={copiarTexto} />}
+      {modalEditar && <ModalEditarUnidade u={modalEditar} onClose={() => setModalEditar(null)} onSave={(novo) => { setUnidades(unidades.map(x => x.id === novo.id ? novo : x)); setModalEditar(null); showToast('Unidade salva!'); }} ativarModoMorador={() => ativarModoMorador(modalEditar)} showToast={showToast} config={config} copiarTexto={copiarTexto} setConfirmacao={setConfirmacao} />}
       {modalRecibo && <ModalRecibo dados={modalRecibo} onClose={() => setModalRecibo(null)} copiarTexto={copiarTexto} />}
-      {modalZeladoria && <ModalZeladoria patrimonio={patrimonio} setPatrimonio={setPatrimonio} onClose={() => setModalZeladoria(false)} showToast={showToast} />}
-      {modalAvisos && <ModalAvisos avisos={avisos} setAvisos={setAvisos} onClose={() => setModalAvisos(false)} showToast={showToast} />}
-      {modalEnquete && <ModalNovaEnquete enquetes={enquetes} setEnquetes={setEnquetes} onClose={() => setModalEnquete(false)} showToast={showToast} />}
+      {modalZeladoria && <ModalZeladoria patrimonio={patrimonio} setPatrimonio={setPatrimonio} onClose={() => setModalZeladoria(false)} showToast={showToast} setConfirmacao={setConfirmacao} />}
+      {modalAvisos && <ModalAvisos avisos={avisos} setAvisos={setAvisos} onClose={() => setModalAvisos(false)} showToast={showToast} setConfirmacao={setConfirmacao} />}
+      {modalEnquete && <ModalNovaEnquete enquetes={enquetes} setEnquetes={setEnquetes} onClose={() => setModalEnquete(false)} showToast={showToast} setConfirmacao={setConfirmacao} />}
       {modalInstalar && <ModalInstalarApp onClose={() => setModalInstalar(false)} />}
       {modalRelatorio && <ModalRelatorioCompleto mes={mesAtual} ano={anoAtual} receita={receitaMes} gasto={gastoMes} pagamentos={unidades.filter(u => getPagamentosMes(u, chaveAtual).length > 0)} despesas={despesasFiltradas} sindica={config.sindicaNome} unidades={unidades} onClose={() => setModalRelatorio(false)} config={config} copiarTexto={copiarTexto} abrirModalUpgrade={() => setModalUpgrade(true)} gerarCSV={gerarCSV} />}
       {modalUpgrade && <ModalUpgrade onClose={() => setModalUpgrade(false)} planoAtual={planoAtivo} ativarTrialStarter={ativarTrialStarter} />}
@@ -965,9 +968,10 @@ function SistemaCondominio({ supabase, session, showToast, inviteCode, setInvite
   );
 }
 
-// --- MODO MORADOR ATUALIZADO (UX LIMPA) ---
-function ModoMorador({ unidade, config, onExit, mesAtual, anoAtual, getPagamentosMes, calcularTotalPago, fmt, unidades, avisos, setModalRecibo, enquetes, setEnquetes, patrimonio, showToast, copiarTexto }) {
+// --- MODO MORADOR ATUALIZADO (UX LIMPA & MODAIS FUNCIONAIS) ---
+function ModoMorador({ unidade, config, onExit, mesAtual, anoAtual, getPagamentosMes, calcularTotalPago, fmt, unidades, avisos, enquetes, setEnquetes, patrimonio, showToast, copiarTexto }) {
   const [modalVerTudo, setModalVerTudo] = useState(null); 
+  const [modalReciboMorador, setModalReciboMorador] = useState(null); // Estado interno para modal de recibo
   const [activeTab, setActiveTab] = useState('mural');
   const [mostrarHistoricoMural, setMostrarHistoricoMural] = useState(false);
   const [mostrarHistoricoZeladoria, setMostrarHistoricoZeladoria] = useState(false);
@@ -1226,7 +1230,7 @@ function ModoMorador({ unidade, config, onExit, mesAtual, anoAtual, getPagamento
                                    <p className="font-black text-slate-700 text-sm">Condomínio {rec.mes}</p>
                                    <p className="text-[10px] text-slate-400">{rec.ano}</p>
                                 </div>
-                                <button onClick={() => setModalRecibo({ nome: unidade.proprietario?.nome, valor: rec.valor, mes: rec.mes, ano: rec.ano, sindica: config.sindicaNome })} className="bg-green-100 text-green-700 px-3 py-2 rounded-lg text-[10px] font-black flex items-center gap-1 hover:bg-green-200">
+                                <button onClick={() => setModalReciboMorador({ nome: unidade.proprietario?.nome, valor: rec.valor, mes: rec.mes, ano: rec.ano, sindica: config.sindicaNome })} className="bg-green-100 text-green-700 px-3 py-2 rounded-lg text-[10px] font-black flex items-center gap-1 hover:bg-green-200">
                                    <FileCheck size={14}/> RECIBO
                                 </button>
                              </div>
@@ -1236,8 +1240,29 @@ function ModoMorador({ unidade, config, onExit, mesAtual, anoAtual, getPagamento
                </div>
            </div>
        )}
+       {/* MODAL RECIBO RENDERIZADO DENTRO DO MODO MORADOR PARA APARECER NO TOPO */}
+       {modalReciboMorador && <ModalRecibo dados={modalReciboMorador} onClose={() => setModalReciboMorador(null)} copiarTexto={copiarTexto} />}
     </div>
   )
+}
+
+// --- NOVO COMPONENTE: MODAL DE CONFIRMAÇÃO CUSTOMIZADO ---
+// Substitui o window.confirm nativo para funcionar em iframes/canvas
+function ModalConfirmacao({ data, onClose }) {
+  if (!data) return null;
+  return (
+    <div className="fixed inset-0 bg-[#1e293b]/90 z-[300] flex items-center justify-center p-6 backdrop-blur-md animate-in fade-in duration-200">
+       <div className="bg-white p-8 rounded-[32px] max-w-sm w-full text-center shadow-2xl animate-in zoom-in duration-300">
+          <div className="bg-red-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500"><AlertTriangle size={32}/></div>
+          <h3 className="font-black text-xl text-[#1e293b] mb-2">{data.titulo}</h3>
+          <p className="text-sm text-slate-500 mb-8 font-medium leading-relaxed">{data.texto}</p>
+          <div className="flex gap-3">
+             <button onClick={onClose} className="flex-1 py-3 text-slate-400 font-bold text-xs uppercase hover:text-slate-600 transition">Cancelar</button>
+             <button onClick={data.onConfirm} className="flex-1 bg-red-500 text-white py-3 rounded-xl font-black text-xs uppercase shadow-lg hover:bg-red-600 transition active:scale-95">Confirmar</button>
+          </div>
+       </div>
+    </div>
+  );
 }
 
 function SetupWizard({ config, setConfig, setUnidades, onDemo, onComplete, importarBackup }) {
@@ -1561,21 +1586,21 @@ function ModalRelatorioCompleto({ mes, ano, receita, gasto, pagamentos, despesas
     );
 }
 
-function ModalZeladoria({ patrimonio, setPatrimonio, onClose, showToast }) { 
+function ModalZeladoria({ patrimonio, setPatrimonio, onClose, showToast, setConfirmacao }) { 
   const [item, setItem] = useState(''); const [data, setData] = useState(''); 
   const toggleConcluido = (id) => { setPatrimonio(patrimonio.map(p => p.id === id ? { ...p, concluido: !p.concluido } : p)); };
-  return <div className="fixed inset-0 bg-[#1e293b]/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm text-left"><div className="bg-white rounded-[32px] w-full max-w-lg p-8 shadow-2xl h-[600px] flex flex-col"><div className="flex justify-between items-center mb-6 border-b pb-4 text-left"><h3 className="font-black text-2xl text-[#1e293b] flex items-center gap-3 tracking-tighter"><Hammer className="text-[#84cc16]" size={24}/> Zeladoria</h3><button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100"><X size={24}/></button></div><div className="bg-blue-50 border border-blue-100 p-3 rounded-xl mb-4 text-[10px] text-blue-700 font-bold">As tarefas adicionadas ficam visíveis para todos os moradores no painel "Manutenção".</div><div className="flex-1 overflow-y-auto space-y-4">{patrimonio.map(p => (<div key={p.id} className={`flex justify-between items-center p-4 rounded-2xl border transition-all ${p.concluido ? 'bg-green-50 border-green-100 opacity-60' : 'bg-slate-50 border-slate-100'}`}><div className="flex items-center gap-3"><button onClick={() => toggleConcluido(p.id)} className={`transition ${p.concluido ? 'text-green-500' : 'text-slate-300 hover:text-slate-400'}`}>{p.concluido ? <CheckSquare size={24} /> : <Square size={24} />}</button><div><p className={`font-black text-sm text-left ${p.concluido ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{safeStr(p.item)}</p><p className="text-[10px] text-orange-600 font-black tracking-widest mt-1 uppercase text-left">Vence em: {safeStr(p.data).split('-').reverse().join('/')}</p></div></div><button onClick={() => { if(confirm("Remover esta tarefa?")) { const novaLista = patrimonio.filter(x => x.id !== p.id); setPatrimonio(novaLista); showToast('Item removido.'); }}} className="text-slate-300 hover:text-red-500 transition"><Trash2 size={18}/></button></div>))}{patrimonio.length === 0 && <EmptyState icon={CheckCircle} title="Tudo Limpo" desc="Não há tarefas de manutenção pendentes no momento." />}</div><div className="mt-6 pt-6 border-t space-y-4 text-left"><input placeholder="Ex: Extintores, Seguro..." value={item} onChange={e=>setItem(e.target.value)} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black outline-none focus:border-[#84cc16]"/><div className="flex gap-3"><input type="date" value={data} onChange={e=>setData(e.target.value)} className="flex-1 border-2 border-slate-100 p-4 rounded-2xl font-bold outline-none focus:border-[#84cc16]"/><button onClick={() => { if(item && data) { setPatrimonio([...patrimonio, {id: Date.now(), item, data, concluido: false}]); setItem(''); setData(''); showToast('Tarefa adicionada!'); } }} className="bg-[#84cc16] text-[#1e293b] px-6 rounded-2xl font-black shadow-lg transition active:scale-95">ADD</button></div></div></div></div>; 
+  return <div className="fixed inset-0 bg-[#1e293b]/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm text-left"><div className="bg-white rounded-[32px] w-full max-w-lg p-8 shadow-2xl h-[600px] flex flex-col"><div className="flex justify-between items-center mb-6 border-b pb-4 text-left"><h3 className="font-black text-2xl text-[#1e293b] flex items-center gap-3 tracking-tighter"><Hammer className="text-[#84cc16]" size={24}/> Zeladoria</h3><button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100"><X size={24}/></button></div><div className="bg-blue-50 border border-blue-100 p-3 rounded-xl mb-4 text-[10px] text-blue-700 font-bold">As tarefas adicionadas ficam visíveis para todos os moradores no painel "Manutenção".</div><div className="flex-1 overflow-y-auto space-y-4">{patrimonio.map(p => (<div key={p.id} className={`flex justify-between items-center p-4 rounded-2xl border transition-all ${p.concluido ? 'bg-green-50 border-green-100 opacity-60' : 'bg-slate-50 border-slate-100'}`}><div className="flex items-center gap-3"><button onClick={() => toggleConcluido(p.id)} className={`transition ${p.concluido ? 'text-green-500' : 'text-slate-300 hover:text-slate-400'}`}>{p.concluido ? <CheckSquare size={24} /> : <Square size={24} />}</button><div><p className={`font-black text-sm text-left ${p.concluido ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{safeStr(p.item)}</p><p className="text-[10px] text-orange-600 font-black tracking-widest mt-1 uppercase text-left">Vence em: {safeStr(p.data).split('-').reverse().join('/')}</p></div></div><button onClick={() => setConfirmacao({ titulo: "Remover Tarefa?", texto: "Deseja apagar este item de manutenção?", onConfirm: () => { const novaLista = patrimonio.filter(x => x.id !== p.id); setPatrimonio(novaLista); showToast('Item removido.'); setConfirmacao(null); }})} className="text-slate-300 hover:text-red-500 transition"><Trash2 size={18}/></button></div>))}{patrimonio.length === 0 && <EmptyState icon={CheckCircle} title="Tudo Limpo" desc="Não há tarefas de manutenção pendentes no momento." />}</div><div className="mt-6 pt-6 border-t space-y-4 text-left"><input placeholder="Ex: Extintores, Seguro..." value={item} onChange={e=>setItem(e.target.value)} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black outline-none focus:border-[#84cc16]"/><div className="flex gap-3"><input type="date" value={data} onChange={e=>setData(e.target.value)} className="flex-1 border-2 border-slate-100 p-4 rounded-2xl font-bold outline-none focus:border-[#84cc16]"/><button onClick={() => { if(item && data) { setPatrimonio([...patrimonio, {id: Date.now(), item, data, concluido: false}]); setItem(''); setData(''); showToast('Tarefa adicionada!'); } }} className="bg-[#84cc16] text-[#1e293b] px-6 rounded-2xl font-black shadow-lg transition active:scale-95">ADD</button></div></div></div></div>; 
 }
 
-function ModalAvisos({ avisos, setAvisos, onClose, showToast }) {
+function ModalAvisos({ avisos, setAvisos, onClose, showToast, setConfirmacao }) {
     const [titulo, setTitulo] = useState(''); const [msg, setMsg] = useState(''); const [tipo, setTipo] = useState('normal'); 
     const postarAviso = () => { if (!titulo || !msg) return showToast('Preencha título e mensagem.', 'error'); const novoAviso = { id: Date.now(), titulo, mensagem: msg, tipo, data: new Date().toLocaleDateString('pt-BR') }; setAvisos([novoAviso, ...(avisos || [])]); setTitulo(''); setMsg(''); showToast('Aviso publicado!'); };
-    const apagarAviso = (id) => { if(confirm("Apagar este comunicado?")) { const novaLista = avisos.filter(a => a.id !== id); setAvisos(novaLista); showToast('Aviso removido.'); } };
+    const apagarAviso = (id) => { setConfirmacao({ titulo: "Apagar Comunicado?", texto: "O aviso será removido permanentemente.", onConfirm: () => { const novaLista = avisos.filter(a => a.id !== id); setAvisos(novaLista); showToast('Aviso removido.'); setConfirmacao(null); } }); };
     const compartilharWhatsApp = (aviso) => { const textoZap = `📢 *COMUNICADO CONDOLEVE*\n\n*${aviso.titulo}*\n\n${aviso.mensagem}\n\n_Acesse o app para mais detalhes._`; window.open(`https://wa.me/?text=${encodeURIComponent(textoZap)}`, '_blank'); };
     return <div className="fixed inset-0 bg-[#1e293b]/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm text-left"><div className="bg-white rounded-[32px] w-full max-w-lg p-8 shadow-2xl h-[700px] flex flex-col"><div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="font-black text-2xl text-[#1e293b] flex items-center gap-3 tracking-tighter"><Megaphone className="text-orange-500" size={24}/> Mural</h3><button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100"><X size={24}/></button></div><div className="bg-orange-50 border border-orange-100 p-3 rounded-xl mb-4 text-[10px] text-orange-700 font-bold">Os comunicados recentes (últimos 30 dias) ficam em destaque no app dos moradores. Os antigos vão para o histórico.</div><div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-1">{avisos && avisos.length > 0 ? avisos.map(a => (<div key={a.id} className={`p-4 rounded-2xl border relative group ${a.tipo === 'urgente' ? 'bg-orange-50 border-orange-200' : 'bg-blue-50 border-blue-100'}`}><div className="flex justify-between items-start mb-2"><span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${a.tipo === 'urgente' ? 'bg-orange-200 text-orange-800' : 'bg-blue-200 text-blue-800'}`}>{a.tipo === 'urgente' ? 'URGENTE' : 'INFO'}</span><span className="text-[10px] font-bold opacity-50">{a.data}</span></div><h4 className="font-black text-sm text-slate-800 mb-1">{a.titulo}</h4><p className="text-xs text-slate-600 leading-relaxed mb-3 whitespace-pre-wrap">{a.mensagem}</p><button onClick={() => compartilharWhatsApp(a)} className="w-full bg-white border border-slate-200 rounded-xl py-2 text-[10px] font-black text-slate-600 flex items-center justify-center gap-2 hover:bg-green-50 hover:text-green-600 hover:border-green-200 transition"><MessageCircle size={14}/> ENVIAR NO GRUPO</button><button onClick={() => apagarAviso(a.id)} className="absolute top-2 right-2 text-slate-300 hover:text-red-500 p-1 bg-white rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition"><Trash2 size={12}/></button></div>)) : (<EmptyState icon={BellRing} title="Sem Avisos" desc="O mural está vazio. Publique o primeiro comunicado." />)}</div><div className="pt-4 border-t space-y-3"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Novo Comunicado</p><input placeholder="Título (Ex: Manutenção Elevador)" value={titulo} onChange={e=>setTitulo(e.target.value)} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold text-sm outline-none focus:border-orange-400"/><textarea placeholder="Mensagem detalhada..." value={msg} onChange={e=>setMsg(e.target.value)} className="w-full border-2 border-slate-100 p-3 rounded-xl font-medium text-xs h-20 outline-none resize-none focus:border-orange-400"/><div className="flex gap-2"><div className="flex bg-slate-100 p-1 rounded-xl"><button onClick={()=>setTipo('normal')} className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase transition ${tipo === 'normal' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Normal</button><button onClick={()=>setTipo('urgente')} className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase transition ${tipo === 'urgente' ? 'bg-white shadow text-orange-600' : 'text-slate-400'}`}>Urgente</button></div><button onClick={postarAviso} className="flex-1 bg-[#1e293b] text-white rounded-xl font-black text-xs shadow-lg hover:bg-black transition active:scale-95">PUBLICAR</button></div></div></div></div>;
 }
 
-function ModalNovaEnquete({ enquetes, setEnquetes, onClose, showToast }) {
+function ModalNovaEnquete({ enquetes, setEnquetes, onClose, showToast, setConfirmacao }) {
     const [pergunta, setPergunta] = useState(''); const [op1, setOp1] = useState(''); const [op2, setOp2] = useState('');
     
     // Admin functions
@@ -1590,18 +1615,28 @@ function ModalNovaEnquete({ enquetes, setEnquetes, onClose, showToast }) {
     };
     
     const encerrarEnquete = (id) => { 
-        if(confirm("Encerrar esta votação? Os moradores não poderão mais votar.")) { 
-            const novaLista = enquetes.map(e => e.id === id ? { ...e, ativa: false } : e);
-            setEnquetes(novaLista); 
-            showToast('Enquete encerrada.'); 
-        } 
+        setConfirmacao({
+            titulo: "Encerrar Votação?",
+            texto: "Os moradores não poderão mais votar, mas o resultado ficará salvo.",
+            onConfirm: () => {
+                 const novaLista = enquetes.map(e => e.id === id ? { ...e, ativa: false } : e);
+                 setEnquetes(novaLista); 
+                 showToast('Enquete encerrada.');
+                 setConfirmacao(null);
+            }
+        });
     };
     
     const apagarEnquete = (id) => { 
-        if(confirm("Apagar histórico desta enquete?")) { 
-            const novaLista = enquetes.filter(e => e.id !== id);
-            setEnquetes(novaLista); 
-        } 
+        setConfirmacao({
+            titulo: "Apagar Enquete?",
+            texto: "Todo o histórico de votos será perdido permanentemente.",
+            onConfirm: () => {
+                const novaLista = enquetes.filter(e => e.id !== id);
+                setEnquetes(novaLista); 
+                setConfirmacao(null);
+            }
+        });
     };
     
     const ativa = enquetes && enquetes.find(e => e.ativa);
@@ -1613,7 +1648,7 @@ function ModalNovaEnquete({ enquetes, setEnquetes, onClose, showToast }) {
     {ativa ? (<div className="bg-white border-2 border-blue-500 p-6 rounded-2xl text-center mb-6 shadow-xl relative overflow-hidden"><div className="absolute top-0 left-0 right-0 bg-blue-500 text-white text-[10px] font-black uppercase py-1">Em Andamento</div><h4 className="font-black text-lg text-blue-900 mb-4 leading-tight mt-4">{ativa.titulo}</h4><div className="space-y-2 mb-6">{ativa.opcoes.map(op => (<div key={op.id} className="flex justify-between text-xs font-bold text-blue-700 bg-blue-50 p-3 rounded-xl"><span>{op.texto}</span><span>{op.votos.length} votos</span></div>))}</div><button onClick={() => encerrarEnquete(ativa.id)} className="w-full bg-red-100 text-red-600 py-3 rounded-xl font-black text-xs hover:bg-red-200 transition">ENCERRAR VOTAÇÃO</button></div>) : (<div className="space-y-4 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nova Votação</p><input placeholder="Pergunta (Ex: Pintar o prédio de Cinza?)" value={pergunta} onChange={e=>setPergunta(e.target.value)} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold text-sm outline-none focus:border-blue-400"/><div className="grid grid-cols-2 gap-2"><input placeholder="Opção 1 (Sim)" value={op1} onChange={e=>setOp1(e.target.value)} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold text-xs outline-none focus:border-blue-400"/><input placeholder="Opção 2 (Não)" value={op2} onChange={e=>setOp2(e.target.value)} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold text-xs outline-none focus:border-blue-400"/></div><button onClick={criarEnquete} className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-xs shadow-lg hover:bg-blue-700 transition">INICIAR VOTAÇÃO</button></div>)}<div className="flex-1 overflow-y-auto border-t pt-4"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Histórico</p>{enquetes && enquetes.filter(e => !e.ativa).map(e => (<div key={e.id} className="flex justify-between items-center p-3 border-b border-slate-100 last:border-0"><div><p className="font-bold text-xs text-slate-600">{e.titulo}</p><p className="text-[10px] text-slate-400">{e.data} • Encerrada • {e.opcoes.reduce((a,b)=>a+b.votos.length,0)} votos</p></div><button onClick={() => apagarEnquete(e.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={14}/></button></div>))}{(!enquetes || enquetes.filter(e => !e.ativa).length === 0) && <p className="text-center text-xs italic text-slate-300 mt-4">Sem histórico.</p>}</div></div></div>;
 }
 
-function ModalEditarUnidade({ u, onClose, onSave, ativarModoMorador, showToast, config, copiarTexto }) { 
+function ModalEditarUnidade({ u, onClose, onSave, ativarModoMorador, showToast, config, copiarTexto, setConfirmacao }) { 
     const [dados, setDados] = useState({...u}); 
     const up = (field, val, isProp) => { if(isProp) setDados({...dados, proprietario:{...(dados.proprietario || {}), [field]:val}}); else setDados({...dados, inquilino:{...(dados.inquilino || {}), [field]:val}}); };
     const gerarLinkConvite = () => {
@@ -1624,8 +1659,30 @@ function ModalEditarUnidade({ u, onClose, onSave, ativarModoMorador, showToast, 
         window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
         showToast('Link de convite gerado e copiado!');
     };
-    const desvincularUsuario = () => { if(confirm("Tem certeza? O morador perderá o acesso ao aplicativo imediatamente.")) { onSave({ ...dados, linked_user_id: null }); showToast("Usuário desvinculado."); onClose(); } };
-    const limparDados = () => { if(confirm("Isso apagará nome, telefone e removerá o acesso do usuário atual. Confirmar troca de morador?")) { onSave({ ...dados, proprietario: { nome: '', telefone: '' }, inquilino: { nome: '', telefone: '' }, linked_user_id: null }); showToast("Dados limpos para novo morador."); onClose(); } };
+    const desvincularUsuario = () => { 
+        setConfirmacao({
+            titulo: "Desvincular Usuário?",
+            texto: "O morador atual perderá o acesso ao aplicativo imediatamente.",
+            onConfirm: () => {
+                onSave({ ...dados, linked_user_id: null }); 
+                showToast("Usuário desvinculado."); 
+                onClose();
+                setConfirmacao(null);
+            }
+        });
+    };
+    const limparDados = () => { 
+        setConfirmacao({
+            titulo: "Limpar Dados?",
+            texto: "Isso apagará nome, telefone e removerá o acesso do usuário atual. Use para troca de morador.",
+            onConfirm: () => {
+                onSave({ ...dados, proprietario: { nome: '', telefone: '' }, inquilino: { nome: '', telefone: '' }, linked_user_id: null }); 
+                showToast("Dados limpos para novo morador."); 
+                onClose();
+                setConfirmacao(null);
+            }
+        });
+    };
     return (
         <div className="fixed inset-0 bg-[#1e293b]/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm text-left">
             <div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl">
