@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Download, Edit, Trash2, User, Home, Calendar, DollarSign, 
   CheckCircle, XCircle, Phone, FileText, Settings, MessageCircle, 
@@ -16,15 +16,15 @@ import {
   Construction, Shield, HelpCircle, Tags, Menu, Grid, Share2, FileBarChart,
   Target, Activity, Bell, BellRing, Smartphone as MobileIcon, MoreHorizontal,
   Vote, Send, Gift, Coffee, UserCheck, UserX, Link2, Layout, Share,
-  Camera, ArrowLeft, Image as ImageSimple
+  Camera, ArrowLeft, Building, Ticket, AlertCircle, Info, LineChart, PartyPopper,
+  Video, KeyRound, Contact, PhoneCall, MonitorPlay, AppWindow, MoveUpRight, Filter, Receipt, BadgeAlert, Wifi, ChevronDown, ChevronUp, PieChart as PieChartIcon, KeySquare
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO SUPABASE ---
 const SUPABASE_URL = "https://jtoubtxumtfwrolxrbpf.supabase.co"; 
 const SUPABASE_KEY = "sb_publishable_jRaZSrBV1Q75Ftj7OVd_Jg_tozzOju3"; 
-const APP_VERSION = "5.8.0-camera-fix";
 
-// --- URLS DOS LOGOS ---
+// --- CONSTANTES E HELPERS ---
 const LOGO_ICON = "https://res.cloudinary.com/dgt5d9xfq/image/upload/v1771380642/logo_compacta_sem_fundo_q97itc.png";
 const LOGO_SIMPLE = "https://res.cloudinary.com/dgt5d9xfq/image/upload/v1771271358/CondoLeve_logo_sem_slogan_skb3zu.png";
 const LOGO_FULL = "https://res.cloudinary.com/dgt5d9xfq/image/upload/v1771267774/CondoLeve_logo_com_slogan_qfgedb.png";
@@ -33,17 +33,47 @@ const CHART_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#e
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const CATEGORIAS_PADRAO = ['Água', 'Luz', 'Limpeza', 'Manutenção', 'Jardinagem', 'Administrativo', 'Outros', 'Fundo de Reserva'];
 
-// --- HELPERS ---
+const INFO_UTEIS_PADRAO = [
+    { id: '1', nome: 'Polícia Militar', numero: '190' },
+    { id: '2', nome: 'SAMU (Ambulância)', numero: '192' },
+    { id: '3', nome: 'Corpo de Bombeiros', numero: '193' },
+    { id: '4', nome: 'WiFi Salão de Festas', numero: 'Senha: 123' }
+];
+
 const safeStr = (val) => val ? String(val) : "";
 const safeNum = (val) => Number(val) || 0;
 const formatarMoeda = (val) => safeNum(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const formatarInteiro = (val) => Math.round(safeNum(val)).toLocaleString('pt-BR');
 const generateId = () => crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString().slice(2);
+
+const gerarHashVerificador = (unidadeId, valor, dataStr) => {
+    const rawStr = `${unidadeId}-${valor}-${dataStr}-${Date.now()}`;
+    let hash = 0;
+    for (let i = 0; i < rawStr.length; i++) {
+        const char = rawStr.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    const hex = Math.abs(hash).toString(16).toUpperCase();
+    const timestamp = Date.now().toString(36).toUpperCase();
+    return `${hex.slice(0, 4)}-${timestamp.slice(-4)}`; 
+};
+
+const getMonthKey = (mesStr, anoNum) => parseInt(anoNum) * 100 + MESES.indexOf(mesStr);
+const getAbsoluteMonthIndex = (year, month) => year * 12 + month;
+
+const maskPhone = (v) => {
+    v = v.replace(/\D/g, "");
+    if (v.length <= 11) v = v.replace(/^(\d{2})(\d)/g, "($1) $2");
+    if (v.length <= 11) v = v.replace(/(\d)(\d{4})$/, "$1-$2");
+    return v.substring(0, 15);
+};
 
 const useMetaTags = (config) => {
   useEffect(() => {
-    if (!config.predioNome) return;
-    document.title = `${config.predioNome} - App do Condomínio`;
-  }, [config.predioNome]);
+    if (!config?.predioNome) return;
+    document.title = `${config.predioNome} - CondoLeve`;
+  }, [config?.predioNome]);
 };
 
 const getIconeCategoria = (categoria) => {
@@ -65,9 +95,7 @@ const Logo = ({ className = "", variant = "simple", width }) => {
     return <img src={src} alt="CondoLeve" className={`object-contain ${width || defaultWidth} ${className}`} />;
 };
 
-const Card = ({ children, className = "" }) => (
-  <div className={`bg-white rounded-2xl shadow-sm border border-slate-100 ${className}`}>{children}</div>
-);
+const Card = ({ children, className = "" }) => <div className={`bg-white rounded-3xl shadow-sm border border-slate-100 ${className}`}>{children}</div>;
 
 const EmptyState = ({ icon: Icon, title, desc, action, label }) => (
     <div className="flex flex-col items-center justify-center py-12 text-center px-4 bg-white rounded-3xl border-2 border-dashed border-slate-100">
@@ -79,7 +107,7 @@ const EmptyState = ({ icon: Icon, title, desc, action, label }) => (
 );
 
 const ToastContainer = ({ toasts, removeToast }) => (
-  <div className="fixed top-4 left-0 right-0 z-[10050] flex flex-col items-center gap-2 pointer-events-none px-4">
+  <div className="fixed top-4 left-0 right-0 z-[10050] flex flex-col items-center gap-2 pointer-events-none px-4 no-print">
     {toasts.map(t => (
       <div key={t.id} className={`pointer-events-auto animate-in slide-in-from-top-2 fade-in duration-300 shadow-2xl rounded-2xl px-6 py-4 flex items-center gap-3 min-w-[300px] max-w-sm border ${t.type === 'error' ? 'bg-red-50 border-red-100 text-red-600' : 'bg-[#1e293b] border-slate-800 text-white'}`}>
         {t.type === 'error' ? <XCircle size={20}/> : <CheckCircle size={20} className="text-[#84cc16]"/>}
@@ -90,20 +118,24 @@ const ToastContainer = ({ toasts, removeToast }) => (
   </div>
 );
 
-// Componente de Botão de Navegação
-const NavBtn = ({ active, onClick, icon, label }) => (
-  <button onClick={onClick} className={`flex flex-col items-center gap-1 transition ${active ? 'text-[#84cc16] scale-110' : 'text-slate-400 hover:text-slate-600'}`}>
-      {icon}
-      <span className="text-[10px] font-black uppercase tracking-wide">{label}</span>
+const NavBtn = ({ active, onClick, icon, label, badgeCount }) => (
+  <button onClick={onClick} className={`flex flex-col items-center gap-1 transition relative ${active ? 'text-[#84cc16] scale-110' : 'text-slate-400 hover:text-slate-600'}`}>
+      <div className="relative">
+          {icon}
+          {badgeCount > 0 && <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[8px] font-black w-3.5 h-3.5 flex items-center justify-center rounded-full border border-white">{badgeCount}</span>}
+      </div>
+      <span className="text-[9px] font-black uppercase tracking-wide">{label}</span>
   </button>
 );
 
+// --- APP PRINCIPAL ---
 export default function App() {
   const [supabase, setSupabase] = useState(null);
   const [session, setSession] = useState(null);
+  const [contexto, setContexto] = useState(null); 
   const [libLoaded, setLibLoaded] = useState(false);
   const [toasts, setToasts] = useState([]);
-  const [inviteCode, setInviteCode] = useState(null);
+  const [inviteData, setInviteData] = useState(null);
 
   const showToast = (msg, type = 'success') => {
     const id = generateId(); 
@@ -124,10 +156,24 @@ export default function App() {
     if (libLoaded && !supabase && SUPABASE_URL.includes("http")) {
       const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       setSupabase(client);
+      
       const params = new URLSearchParams(window.location.search);
-      if (params.get('invite')) setInviteCode(params.get('invite'));
-      client.auth.getSession().then(({ data: { session } }) => setSession(session));
-      const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => setSession(session));
+      if (params.get('invite') && params.get('c')) {
+          setInviteData({ numero: params.get('invite'), cId: params.get('c') });
+      }
+      
+      client.auth.getSession().then(({ data: { session } }) => {
+          setSession(session);
+      });
+
+      const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+          setSession(session);
+          if(!session) setContexto(null);
+          // Se o usuário veio de um link de recuperação de senha, ele estará logado e o evento é PASSWORD_RECOVERY
+          if (event === 'PASSWORD_RECOVERY') {
+              showToast("Bem-vindo de volta! Acesse as Configurações e altere sua senha no seu Perfil.");
+          }
+      });
       return () => subscription.unsubscribe();
     }
   }, [libLoaded]);
@@ -137,76 +183,218 @@ export default function App() {
   return (
     <>
       <ToastContainer toasts={toasts} removeToast={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
-      {!session ? 
-        <TelaLogin supabase={supabase} showToast={showToast} inviteCode={inviteCode} /> : 
-        <SistemaCondominio supabase={supabase} session={session} showToast={showToast} inviteCode={inviteCode} setInviteCode={setInviteCode} />
-      }
+      {!session ? ( <TelaLogin supabase={supabase} showToast={showToast} inviteData={inviteData} /> ) : !contexto ? ( <SeletorContexto supabase={supabase} session={session} onSelect={setContexto} showToast={showToast} inviteData={inviteData} setInviteData={setInviteData} /> ) : ( <SistemaCondominio supabase={supabase} session={session} contexto={contexto} onSwitch={() => setContexto(null)} showToast={showToast} /> )}
     </>
   );
 }
 
-function TelaLogin({ supabase, showToast, inviteCode }) {
-  const [email, setEmail] = useState('');
-  const [senha, setSenha] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [modoCadastro, setModoCadastro] = useState(false);
+// --- LOGIN ---
+function TelaLogin({ supabase, showToast, inviteData }) {
+    const [email, setEmail] = useState(''); 
+    const [senha, setSenha] = useState(''); 
+    const [loading, setLoading] = useState(false); 
+    const [modo, setModo] = useState('login'); 
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { error } = modoCadastro 
-        ? await supabase.auth.signUp({ email, password: senha })
-        : await supabase.auth.signInWithPassword({ email, password: senha });
-      if (error) throw error;
-      if (modoCadastro) showToast('Conta criada! Verifique seu e-mail.');
-    } catch (error) { showToast(error.message || "Erro de autenticação", 'error'); } finally { setLoading(false); }
-  };
+    const handleAcao = async (e) => { 
+        e.preventDefault(); 
+        setLoading(true); 
+        try { 
+            if (modo === 'recuperar') {
+                const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+                if (error) throw error;
+                showToast('Link de recuperação enviado para o seu e-mail!');
+                setModo('login');
+            } else if (modo === 'cadastro') {
+                const { error } = await supabase.auth.signUp({ email, password: senha }); 
+                if (error) throw error; 
+                showToast('Conta criada! Bem-vindo.');
+            } else {
+                const { error } = await supabase.auth.signInWithPassword({ email, password: senha }); 
+                if (error) throw error; 
+            }
+        } catch (error) { 
+            showToast(error.message || "Erro de autenticação", 'error'); 
+        } finally { 
+            setLoading(false); 
+        } 
+    };
 
-  const handleRecuperarSenha = async () => {
-    if(!email) return showToast("Digite seu e-mail primeiro.", "error");
-    setLoading(true);
-    try {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
-        if(error) throw error;
-        showToast("E-mail de recuperação enviado!");
-    } catch (e) { showToast(e.message, "error"); } finally { setLoading(false); }
-  }
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
+         <div className="bg-white p-8 rounded-[40px] shadow-2xl w-full max-w-sm text-center relative overflow-hidden">
+            <div className="flex justify-center mb-6"><Logo variant="simple" width="w-48" /></div>
+            
+            {inviteData && modo === 'login' && ( 
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl mb-6 flex items-center gap-3 text-left animate-in slide-in-from-top-4">
+                    <ShieldCheck className="text-blue-500 shrink-0" size={24}/>
+                    <div>
+                        <p className="text-[10px] font-black text-blue-500 uppercase">Acesso Seguro</p>
+                        <p className="text-xs font-bold text-blue-800 tracking-tight leading-tight">Faça login para solicitar acesso ao <b>Apto {inviteData.numero}</b>.</p>
+                    </div>
+                </div> 
+            )}
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-       <div className="bg-white p-8 rounded-[40px] shadow-2xl w-full max-w-sm text-center">
-          <div className="flex justify-center mb-6"><Logo variant="simple" width="w-48" /></div>
-          {inviteCode && (<div className="bg-blue-50 border border-blue-200 p-3 rounded-xl mb-6"><p className="text-[10px] font-black uppercase text-blue-500 tracking-widest mb-1">Convite Especial</p><p className="text-sm font-bold text-blue-800">Você foi convidado para o <br/>Apto {inviteCode}</p></div>)}
-          <h2 className="text-2xl font-black text-[#1e293b] mb-2">{modoCadastro ? 'Criar Conta' : 'Bem-vindo'}</h2>
-          <form onSubmit={handleLogin} className="space-y-4 text-left mt-8">
-             <div><label className="text-[10px] font-black uppercase text-slate-400 ml-2">E-mail</label><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold text-sm outline-none focus:border-[#84cc16] transition"/></div>
-             <div><label className="text-[10px] font-black uppercase text-slate-400 ml-2">Senha</label><input type="password" required value={senha} onChange={e=>setSenha(e.target.value)} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold text-sm outline-none focus:border-[#84cc16] transition"/></div>
-             {!modoCadastro && <div className="text-right"><button type="button" onClick={handleRecuperarSenha} className="text-[10px] font-bold text-slate-400 hover:text-[#1e293b]">Esqueci minha senha</button></div>}
-             <button disabled={loading} className="w-full bg-[#1e293b] text-white py-4 rounded-2xl font-black shadow-xl hover:bg-black transition active:scale-95 disabled:opacity-50">{loading ? <RefreshCw className="animate-spin mx-auto"/> : (modoCadastro ? 'CADASTRAR' : 'ENTRAR')}</button>
-          </form>
-          <button onClick={() => setModoCadastro(!modoCadastro)} className="mt-6 text-xs font-bold text-slate-400 hover:text-[#84cc16] transition">{modoCadastro ? 'Já tenho conta' : 'Criar uma conta nova'}</button>
-       </div>
-    </div>
-  );
+            <h2 className="text-2xl font-black text-[#1e293b] mb-2">
+                {modo === 'cadastro' ? 'Criar Conta' : (modo === 'recuperar' ? 'Recuperar Senha' : 'Bem-vindo')}
+            </h2>
+            
+            {modo === 'recuperar' && <p className="text-xs text-slate-500 font-medium mb-4">Digite seu e-mail abaixo. Enviaremos um link mágico para você redefinir sua senha.</p>}
+
+            <form onSubmit={handleAcao} className="space-y-4 text-left mt-6">
+               <div>
+                   <label className="text-[10px] font-black uppercase text-slate-400 ml-2">E-mail</label>
+                   <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold text-sm outline-none focus:border-[#84cc16] transition"/>
+               </div>
+               {modo !== 'recuperar' && (
+                   <div>
+                       <div className="flex justify-between items-center pr-2">
+                           <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Senha</label>
+                           {modo === 'login' && <button type="button" onClick={() => setModo('recuperar')} className="text-[10px] font-black text-[#84cc16] hover:underline">Esqueceu?</button>}
+                       </div>
+                       <input type="password" required value={senha} onChange={e=>setSenha(e.target.value)} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold text-sm outline-none focus:border-[#84cc16] transition"/>
+                   </div>
+               )}
+               
+               <button disabled={loading} className="w-full bg-[#1e293b] text-white py-4 rounded-2xl font-black shadow-xl hover:bg-black transition active:scale-95 disabled:opacity-50 mt-2">
+                   {loading ? <RefreshCw className="animate-spin mx-auto"/> : (modo === 'cadastro' ? 'CADASTRAR' : (modo === 'recuperar' ? 'ENVIAR LINK MAGICO' : 'ENTRAR'))}
+               </button>
+            </form>
+            
+            <div className="mt-6 flex flex-col gap-3">
+                {modo === 'login' ? (
+                    <button onClick={() => setModo('cadastro')} className="text-xs font-bold text-slate-400 hover:text-[#84cc16] transition">Criar uma conta nova</button>
+                ) : (
+                    <button onClick={() => setModo('login')} className="text-xs font-bold text-slate-400 hover:text-slate-800 transition flex items-center justify-center gap-1"><ArrowLeft size={14}/> Voltar para o Login</button>
+                )}
+            </div>
+         </div>
+
+         {/* Rodapé SaaS Profissional */}
+         <div className="mt-12 text-center opacity-50">
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">CondoLeve © {new Date().getFullYear()}</p>
+             <div className="flex justify-center gap-4 mt-2">
+                 <a href="#" className="text-[10px] font-bold text-slate-500 hover:text-slate-800">Termos de Uso</a>
+                 <span className="text-slate-300">•</span>
+                 <a href="#" className="text-[10px] font-bold text-slate-500 hover:text-slate-800">Privacidade (LGPD)</a>
+             </div>
+         </div>
+      </div>
+    );
 }
 
-function SistemaCondominio({ supabase, session, showToast, inviteCode, setInviteCode }) {
+// --- SELETOR & FILA DE APROVAÇÃO ---
+function SeletorContexto({ supabase, session, onSelect, showToast, inviteData, setInviteData }) {
+    const [vinculos, setVinculos] = useState([]); const [loading, setLoading] = useState(true); const [showWizard, setShowWizard] = useState(false); const [statusFila, setStatusFila] = useState(null);
+
+    useEffect(() => {
+        const init = async () => {
+            setLoading(true);
+            try {
+                if (inviteData) {
+                    showToast(`Enviando solicitação para o Síndico...`);
+                    const { data: configTarget } = await supabase.from('config_geral').select('*').eq('condominio_id', inviteData.cId).maybeSingle();
+                    if (configTarget) {
+                        const dadosApp = configTarget.dados || {}; const fila = dadosApp.filaAprovacao || [];
+                        if (!fila.find(f => f.userId === session.user.id)) { fila.push({ id: generateId(), userId: session.user.id, email: session.user.email, numero: inviteData.numero, data: new Date().toLocaleDateString() }); await supabase.from('config_geral').update({ dados: { ...dadosApp, filaAprovacao: fila } }).eq('condominio_id', inviteData.cId); }
+                        setStatusFila({ predio: dadosApp.predioNome || 'Condomínio', apto: inviteData.numero });
+                    }
+                    setInviteData(null); setLoading(false); return; 
+                }
+                const { data, error } = await supabase.from('vinculos').select('*, condominios(nome), unidades(numero)').eq('user_id', session.user.id);
+                if (error) throw error;
+                if (data && data.length > 0) { setVinculos(data); if (data.length === 1) onSelect(data[0]); } else { const { data: config } = await supabase.from('config_geral').select('*').eq('user_id', session.user.id).maybeSingle(); if (config && config.condominio_id) { setVinculos([{ id: 'legacy', role: 'sindico', condominio_id: config.condominio_id, condominios: { nome: config.dados.predioNome || 'Meu Condomínio' } }]); } else setShowWizard(true); }
+            } catch (err) { setShowWizard(true); } finally { setLoading(false); }
+        };
+        init();
+    }, []);
+
+    if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><RefreshCw className="animate-spin text-[#84cc16]"/></div>;
+    if (statusFila) return ( <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-center"><div className="bg-white p-8 rounded-[40px] shadow-xl max-w-sm w-full animate-in zoom-in"><div className="bg-orange-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 text-orange-500"><Clock size={40}/></div><h2 className="text-2xl font-black text-slate-800 mb-2 leading-tight">Aguardando Liberação</h2><p className="text-sm text-slate-500 mb-6 font-medium">Sua solicitação de acesso ao <b>Apto {statusFila.apto}</b> do condomínio <b>{statusFila.predio}</b> foi enviada ao Síndico.</p><button onClick={() => window.location.href = window.location.pathname} className="w-full bg-[#1e293b] text-white py-4 rounded-xl font-black text-xs hover:bg-black transition">VOLTAR AO INÍCIO</button></div></div> );
+    if (showWizard) return <SetupWizard supabase={supabase} session={session} onComplete={(v) => onSelect(v)} showToast={showToast} />;
+
+    return (
+        <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center">
+            <Logo variant="simple" width="w-40" className="mt-10 mb-10" />
+            <div className="w-full max-w-md space-y-4">
+                <div className="text-center mb-6"><h2 className="text-2xl font-black text-slate-800">Escolha o Acesso</h2></div>
+                {vinculos.map(v => (
+                    <Card key={v.id} className="overflow-hidden hover:shadow-md transition cursor-pointer group">
+                        <button onClick={() => onSelect(v)} className="w-full p-6 flex items-center justify-between text-left">
+                            <div className="flex items-center gap-4"><div className={`p-3 rounded-2xl ${v.role === 'sindico' ? 'bg-[#1e293b] text-white' : 'bg-[#84cc16]/10 text-[#1e293b]'}`}>{v.role === 'sindico' ? <Crown size={24}/> : <Home size={24}/>}</div><div><h3 className="font-black text-slate-800 group-hover:text-[#84cc16] transition">{v.condominios?.nome || 'Condomínio'}</h3><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{v.role === 'sindico' ? 'Gestor / Síndico' : `Morador - Apto ${v.unidades?.numero || '?'}`}</p></div></div><ArrowRight className="text-slate-200 group-hover:text-[#84cc16] group-hover:translate-x-1 transition" size={20}/>
+                        </button>
+                    </Card>
+                ))}
+                <div className="pt-6 border-t border-slate-200 mt-6 text-center"><button onClick={() => setShowWizard(true)} className="text-xs font-black text-[#84cc16] flex items-center gap-2 mx-auto hover:scale-105 transition"><PlusCircle size={16}/> CRIAR NOVO CONDOMÍNIO</button><button onClick={() => supabase.auth.signOut()} className="mt-10 text-xs font-bold text-slate-300 hover:text-red-500 transition">Sair da conta</button></div>
+            </div>
+        </div>
+    );
+}
+
+// --- WIZARD ---
+function SetupWizard({ supabase, session, onComplete, showToast }) {
+    const [step, setStep] = useState(1);
+    const [form, setForm] = useState({ nome: '', sindico: '', celular: '', valor: '', pix: '', saldoInicial: '' });
+    const [temBlocos, setTemBlocos] = useState(false); const [usarZero, setUsarZero] = useState(true);
+    const [blocos, setBlocos] = useState(''); const [andares, setAndares] = useState(''); const [aptosPorAndar, setAptosPorAndar] = useState('');
+    const [listaGerada, setListaGerada] = useState([]); const [loading, setLoading] = useState(false); const [insight, setInsight] = useState(null);
+
+    const gerarApartamentos = () => {
+        if(!andares || !aptosPorAndar) { showToast("Preencha andares e aptos.", "error"); return; }
+        const numAndares = parseInt(andares); const numAptos = parseInt(aptosPorAndar); let novaLista = [];
+        const listaBlocos = temBlocos && blocos ? blocos.split(',').map(b => b.trim()).filter(b=>b) : [''];
+        listaBlocos.forEach(bloco => { for(let i=1; i<=numAndares; i++) { for(let j=1; j<=numAptos; j++) { const numeroStr = usarZero ? `${i}${String(j).padStart(2, '0')}` : `${i}${j}`; novaLista.push(bloco ? `${bloco}-${numeroStr}` : numeroStr); } } });
+        setListaGerada(prev => [...new Set([...prev, ...novaLista])]); showToast(`Foram geradas ${novaLista.length} unidades na lista.`);
+    };
+
+    const finalizar = async () => {
+        if(listaGerada.length === 0) return showToast("Gere a lista antes!", "error");
+        setLoading(true);
+        try {
+            const hoje = new Date();
+            const inicioOp = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+            const valorTaxa = safeNum(form.valor) || 0; const saldoIni = safeNum(form.saldoInicial) || 0;
+
+            const { data: condo, error: e1 } = await supabase.from('condominios').insert({ nome: form.nome, created_by: session.user.id }).select().single(); if (e1) throw e1;
+            const { data: vinc, error: e2 } = await supabase.from('vinculos').insert({ user_id: session.user.id, condominio_id: condo.id, role: 'sindico' }).select('*, condominios(nome)').single(); if (e2) throw e2;
+            const { error: e3 } = await supabase.from('config_geral').insert({ condominio_id: condo.id, user_id: session.user.id, dados: { predioNome: form.nome, sindicaNome: form.sindico, valorCondominio: valorTaxa, saldoInicial: saldoIni, chavePix: form.pix, telefoneSindico: form.celular, categorias: CATEGORIAS_PADRAO, inicioOperacao: inicioOp, telefonesUteis: INFO_UTEIS_PADRAO, filaAprovacao: [] } }); if (e3) throw e3;
+            
+            const unitsToInsert = listaGerada.map(n => ({ user_id: session.user.id, condominio_id: condo.id, numero: n, proprietario: {}, inquilino: {}, mora_proprietario: true }));
+            await supabase.from('unidades').insert(unitsToInsert);
+            
+            const potencialMes = listaGerada.length * valorTaxa; let mesesFolego = 0; if (valorTaxa > 0) mesesFolego = (saldoIni / potencialMes).toFixed(1);
+            setInsight({ vinc, potencialMes, saldoIni, mesesFolego: parseFloat(mesesFolego) }); setStep(4); 
+        } catch (err) { showToast(err.message, 'error'); } finally { setLoading(false); }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-white z-[10010] flex flex-col p-8 font-sans text-left overflow-y-auto"><div className="max-w-md mx-auto w-full"><div className="mb-10"><Logo variant="simple" width="w-48" /></div>{step < 4 && <div className="flex gap-2 mb-10">{[1,2,3].map(i => <div key={i} className={`h-1.5 flex-1 rounded-full transition-all ${step >= i ? 'bg-[#1e293b]' : 'bg-slate-100'}`}></div>)}</div>}
+                {step === 1 && (<div className="space-y-6 animate-in slide-in-from-right"><h2 className="text-3xl font-black text-slate-900 leading-tight">Vamos começar seu Condomínio? 🏢</h2><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Nome do Prédio</span><input value={form.nome} onChange={e=>setForm({...form, nome:e.target.value})} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black outline-none focus:border-[#84cc16] transition" placeholder="Ex: Edifício Solar"/></label><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Seu Nome</span><input value={form.sindico} onChange={e=>setForm({...form, sindico:e.target.value})} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black outline-none focus:border-[#84cc16] transition" placeholder="Ex: Maria Síndica"/></label><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">WhatsApp do Síndico</span><input value={maskPhone(form.celular)} onChange={e=>setForm({...form, celular:maskPhone(e.target.value)})} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black outline-none focus:border-[#84cc16] transition" placeholder="(11) 99999-9999"/></label><button onClick={()=>setStep(2)} disabled={!form.nome || !form.sindico} className="w-full bg-[#1e293b] text-white py-5 rounded-2xl font-black shadow-2xl disabled:opacity-50 transition active:scale-95">PRÓXIMO PASSO</button></div>)}
+                {step === 2 && (<div className="space-y-6 animate-in slide-in-from-right"><div><h2 className="text-3xl font-black text-slate-900 leading-tight mb-2">Financeiro 💰</h2><p className="text-xs text-slate-400 font-bold mb-4">Você pode preencher isso depois se não souber agora.</p></div><div className="flex gap-4"><label className="block w-1/2"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Taxa (R$)</span><input type="number" placeholder="Opcional" value={form.valor} onChange={e=>setForm({...form, valor:e.target.value})} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black text-green-600 outline-none focus:border-[#84cc16]"/></label><label className="block w-1/2"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Saldo Inicial (R$)</span><input type="number" placeholder="Opcional" value={form.saldoInicial} onChange={e=>setForm({...form, saldoInicial:e.target.value})} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black text-blue-600 outline-none focus:border-[#84cc16]"/></label></div><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Chave PIX do Condomínio</span><input value={form.pix} onChange={e=>setForm({...form, pix:e.target.value})} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black outline-none focus:border-[#84cc16]" placeholder="Opcional por enquanto"/></label><button onClick={()=>setStep(3)} className="w-full bg-[#1e293b] text-white py-5 rounded-2xl font-black shadow-2xl transition active:scale-95">PULAR OU AVANÇAR</button><button onClick={()=>setStep(1)} className="w-full text-xs font-bold text-slate-400 hover:text-slate-800 transition">Voltar</button></div>)}
+                {step === 3 && (<div className="space-y-6 animate-in slide-in-from-right"><h2 className="text-3xl font-black text-slate-900 mb-2 leading-tight">Gerador de Aptos 🏠</h2><div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 mb-6 space-y-4"><label className="flex items-center gap-3 cursor-pointer select-none"><input type="checkbox" checked={temBlocos} onChange={e=>setTemBlocos(e.target.checked)} className="accent-[#84cc16] w-5 h-5 rounded-md"/><span className="text-sm font-bold text-slate-700">O condomínio possui Blocos/Torres?</span></label>{temBlocos && <input placeholder="Ex: Bloco A, Bloco B, Torre 1" value={blocos} onChange={e=>setBlocos(e.target.value)} className="w-full p-4 border-2 border-slate-100 rounded-xl text-sm font-bold outline-none focus:border-[#84cc16] bg-white"/>}<div className="flex gap-2"><input placeholder="Nº de Andares (ex: 5)" type="number" value={andares} onChange={e=>setAndares(e.target.value)} className="w-1/2 p-4 border-2 border-slate-100 rounded-xl text-sm font-bold outline-none focus:border-[#84cc16] bg-white"/><input placeholder="Aptos por Andar (ex: 4)" type="number" value={aptosPorAndar} onChange={e=>setAptosPorAndar(e.target.value)} className="w-1/2 p-4 border-2 border-slate-100 rounded-xl text-sm font-bold outline-none focus:border-[#84cc16] bg-white"/></div><label className="flex items-center gap-3 cursor-pointer select-none pt-2"><input type="checkbox" checked={usarZero} onChange={e=>setUsarZero(e.target.checked)} className="accent-[#84cc16] w-5 h-5 rounded-md"/><div><span className="text-sm font-bold text-slate-700 block">Usar zero na dezena?</span><span className="text-[10px] text-slate-400 font-bold uppercase">{usarZero ? 'Ex: 101, 102...' : 'Ex: 11, 12...'}</span></div></label><button onClick={gerarApartamentos} className="w-full bg-[#1e293b] text-white py-4 rounded-xl font-black text-xs uppercase hover:bg-black transition flex items-center justify-center gap-2 mt-2"><PlusCircle size={16}/> Gerar Lista</button></div><div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 min-h-[100px] items-start content-start">{listaGerada.map((a,i) => ( <div key={i} className="bg-white border border-slate-200 shadow-sm px-4 py-2 rounded-full text-xs font-black text-slate-700 flex items-center gap-2">{a} <button onClick={()=>setListaGerada(listaGerada.filter(x=>x!==a))} className="text-red-400 hover:text-red-600"><X size={14}/></button></div> ))} </div><div className="pt-4"><button onClick={finalizar} disabled={loading || listaGerada.length === 0} className={`w-full py-5 rounded-2xl font-black shadow-2xl transition flex justify-center items-center gap-2 ${listaGerada.length === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-[#84cc16] text-[#1e293b] hover:bg-[#a3e635] active:scale-95'}`}>{loading ? <RefreshCw className="animate-spin"/> : 'FINALIZAR E ENTRAR'}</button><button onClick={()=>setStep(2)} className="w-full mt-4 text-xs font-bold text-slate-400 hover:text-slate-800 transition">Voltar</button></div></div>)}
+                {step === 4 && insight && (<div className="space-y-6 text-center animate-in zoom-in duration-500 py-10"><div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6"><PartyPopper size={48} className="text-green-500"/></div><h2 className="text-3xl font-black text-slate-900 leading-tight mb-2">Tudo Pronto!</h2><p className="text-slate-500 font-medium mb-8">Seu condomínio foi criado e já está pronto para uso.</p>{(insight.potencialMes > 0 || insight.saldoIni > 0) && (<div className="bg-blue-50 border border-blue-100 p-6 rounded-3xl text-left mb-8 relative overflow-hidden"><div className="absolute top-0 right-0 opacity-5 -translate-y-4 translate-x-4"><Activity size={100}/></div><p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-4 flex items-center gap-2 relative z-10"><Activity size={14}/> Raio-X Financeiro</p>{insight.potencialMes > 0 && (<p className="text-sm font-bold text-slate-700 mb-2 relative z-10">Sua arrecadação potencial é de <span className="text-blue-600 font-black">{formatarMoeda(insight.potencialMes)}/mês</span>.</p>)}{insight.saldoIni > 0 && insight.potencialMes > 0 && (<p className="text-sm font-bold text-slate-700 relative z-10">Com o saldo atual, você tem fôlego para cobrir <span className="bg-blue-200 text-blue-800 px-2 py-0.5 rounded font-black">{insight.mesesFolego} meses</span> de despesas equivalentes à sua arrecadação total.</p>)}</div>)}<button onClick={() => onComplete(insight.vinc)} className="w-full bg-[#1e293b] text-white py-5 rounded-2xl font-black shadow-2xl transition hover:bg-black active:scale-95">ACESSAR MEU PAINEL</button></div>)}
+            </div></div>
+    );
+}
+
+// --- DASHBOARD PRINCIPAL SÍNDICO ---
+function SistemaCondominio({ supabase, session, contexto, onSwitch, showToast }) {
   const [loading, setLoading] = useState(true);
-  const [abaAtiva, setAbaAtiva] = useState('receitas');
+  const cId = contexto.condominio_id || 'default';
   
-  // Dados
+  const isSindico = contexto.role === 'sindico';
+  const [abaAtiva, setAbaAtiva] = useState(isSindico ? 'caixa' : 'mural'); 
+  
   const [unidades, setUnidades] = useState([]);
   const [despesas, setDespesas] = useState([]);
   const [pagamentos, setPagamentos] = useState([]);
-  const [patrimonio, setPatrimonio] = useState([]);
+  const [patrimonio, setPatrimonio] = useState([]); 
   const [avisos, setAvisos] = useState([]);
   const [enquetes, setEnquetes] = useState([]); 
   
   const [config, setConfig] = useState({ 
-    valorCondominio: 200, sindicaNome: 'Síndico(a)', predioNome: '', chavePix: '', 
+    valorCondominio: 200, sindicaNome: 'Síndico(a)', predioNome: contexto.condominios?.nome || 'CondoLeve', chavePix: '', 
     saldoInicial: 0, inicioOperacao: '', diaVencimento: 10, linkGrupo: '', 
-    tipoPlano: 'free', categorias: CATEGORIAS_PADRAO, multaAtraso: 2, jurosMensal: 1, telefoneSindico: ''
+    tipoPlano: 'free', categorias: CATEGORIAS_PADRAO, telefonesUteis: INFO_UTEIS_PADRAO, filaAprovacao: [], telefoneSindico: ''
   });
   
   const [mesAtual, setMesAtual] = useState(MESES[new Date().getMonth()]);
@@ -214,24 +402,26 @@ function SistemaCondominio({ supabase, session, showToast, inviteCode, setInvite
   const [busca, setBusca] = useState('');
   const [modoPrivacidade, setModoPrivacidade] = useState(false);
   
-  // Modais
-  const [modalUpgrade, setModalUpgrade] = useState(false); 
+  // Modais State
   const [modalPagamento, setModalPagamento] = useState(null);
   const [modalDetalhesUnidade, setModalDetalhesUnidade] = useState(null); 
+  const [modalReciboVisual, setModalReciboVisual] = useState(null); 
   const [modalEditar, setModalEditar] = useState(null);
   const [modalConfig, setModalConfig] = useState(false); 
   const [modalNovaDespesa, setModalNovaDespesa] = useState(false);
   const [modalEditarDespesa, setModalEditarDespesa] = useState(null);
   const [modalRelatorio, setModalRelatorio] = useState(false);
-  const [modalZeladoria, setModalZeladoria] = useState(false); 
+  const [modalManutencao, setModalManutencao] = useState(false); 
   const [modalAvisos, setModalAvisos] = useState(false);
   const [modalEnquete, setModalEnquete] = useState(false); 
+  const [modalTelefones, setModalTelefones] = useState(false); 
   const [modalInstalar, setModalInstalar] = useState(false); 
-  const [showWizard, setShowWizard] = useState(false); 
+  const [modalFila, setModalFila] = useState(false); 
   const [confirmacao, setConfirmacao] = useState(null);
+  const [printMode, setPrintMode] = useState(null); 
 
-  const [modoMorador, setModoMorador] = useState(false);
-  const [unidadeMorador, setUnidadeMorador] = useState(null);
+  const [modoMorador, setModoMorador] = useState(!isSindico); 
+  const [unidadeMorador, setUnidadeMorador] = useState(contexto.unidades ? { ...contexto.unidades, id: contexto.unidade_id } : null);
 
   useMetaTags(config);
 
@@ -239,344 +429,561 @@ function SistemaCondominio({ supabase, session, showToast, inviteCode, setInvite
       setLoading(true);
       try {
           const [resUnidades, resPagamentos, resDespesas, resAvisos, resZeladoria, resEnquetes, resConfig] = await Promise.all([
-              supabase.from('unidades').select('*').eq('user_id', session.user.id),
-              supabase.from('pagamentos').select('*').eq('user_id', session.user.id),
-              supabase.from('despesas').select('*').eq('user_id', session.user.id),
-              supabase.from('avisos').select('*').eq('user_id', session.user.id),
-              supabase.from('zeladoria').select('*').eq('user_id', session.user.id),
-              supabase.from('enquetes').select('*').eq('user_id', session.user.id),
-              supabase.from('config_geral').select('*').eq('user_id', session.user.id).maybeSingle()
+              supabase.from('unidades').select('*').eq('condominio_id', cId), supabase.from('pagamentos').select('*').eq('condominio_id', cId), supabase.from('despesas').select('*').eq('condominio_id', cId), supabase.from('avisos').select('*').eq('condominio_id', cId), supabase.from('zeladoria').select('*').eq('condominio_id', cId), supabase.from('enquetes').select('*').eq('condominio_id', cId), supabase.from('config_geral').select('*').eq('condominio_id', cId).maybeSingle()
           ]);
-
-          if (resUnidades.data) setUnidades(resUnidades.data);
+          if (resUnidades.data) setUnidades(resUnidades.data.sort((a,b) => String(a.numero).localeCompare(String(b.numero), undefined, {numeric: true})));
           if (resPagamentos.data) setPagamentos(resPagamentos.data);
           if (resDespesas.data) setDespesas(resDespesas.data);
           if (resAvisos.data) setAvisos(resAvisos.data);
           if (resZeladoria.data) setPatrimonio(resZeladoria.data);
           if (resEnquetes.data) setEnquetes(resEnquetes.data);
-          if (resConfig.data) setConfig({ ...config, ...resConfig.data.dados });
-
-          if ((!resUnidades.data || resUnidades.data.length === 0)) {
-               const temConfig = resConfig.data;
-               if (!temConfig) setShowWizard(true);
+          if (resConfig.data) {
+              const dadosMesclados = { ...resConfig.data.dados };
+              if (!dadosMesclados.telefonesUteis) dadosMesclados.telefonesUteis = INFO_UTEIS_PADRAO;
+              if (!dadosMesclados.filaAprovacao) dadosMesclados.filaAprovacao = [];
+              if (!dadosMesclados.inicioOperacao) { 
+                  const d = new Date(); 
+                  dadosMesclados.inicioOperacao = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; 
+              }
+              setConfig(prev => ({ ...prev, ...dadosMesclados }));
           }
       } catch (error) { console.error(error); showToast("Erro de conexão.", 'error'); } finally { setLoading(false); }
   };
 
-  useEffect(() => { if (session) carregarDados(); }, [session]);
+  useEffect(() => { carregarDados(); }, [cId]);
 
-  // --- NOVA ESTRUTURA UNIFICADA DE DADOS E BACKUP ---
-  const gerarDadosFake = async () => {
-    try {
-        setLoading(true);
-        // Limpar dados anteriores para evitar conflitos no demo
-        await resetarSistema(true); 
-
-        const demoUnits = [];
-        for (let i = 1; i <= 6; i++) {
-            demoUnits.push({ user_id: session.user.id, numero: `${100 + i}`, proprietario: { nome: `Morador ${i}`, telefone: '34999998888' }, inquilino: {}, mora_proprietario: true });
-        }
-        const { data: unitsData, error: uErr } = await supabase.from('unidades').insert(demoUnits).select();
-        if(uErr) throw uErr;
-        setUnidades(unitsData);
-
-        const pagamentosDemo = [];
-        const mesesParaTras = 4;
-        for (let i = 0; i < mesesParaTras; i++) {
-            const d = new Date(); d.setMonth(d.getMonth() - i);
-            const mesNome = MESES[d.getMonth()];
-            const anoNum = d.getFullYear();
-            for(let j=0; j<3; j++) {
-                if(unitsData[j]) pagamentosDemo.push({ user_id: session.user.id, unidade_id: unitsData[j].id, valor: 250, data: `10/${d.getMonth()+1}/${anoNum}`, mes: mesNome, ano: anoNum });
-            }
-        }
-        const { data: pagsData } = await supabase.from('pagamentos').insert(pagamentosDemo).select();
-        if(pagsData) setPagamentos(pagsData);
-
-        const demoDespesas = [
-            { user_id: session.user.id, descricao: 'Energia', valor: 350.50, categoria: 'Luz', data: `05/${new Date().getMonth()+1}/${new Date().getFullYear()}`, mes: MESES[new Date().getMonth()], ano: new Date().getFullYear(), pago: true },
-        ];
-        const { data: dData } = await supabase.from('despesas').insert(demoDespesas).select();
-        if(dData) setDespesas(dData);
-
-        const novaConfig = { ...config, predioNome: 'Residencial Demo', sindicaNome: 'Síndico Teste', valorCondominio: 250, telefoneSindico: '11999999999' };
-        setConfig(novaConfig);
-        await supabase.from('config_geral').upsert({ user_id: session.user.id, dados: novaConfig });
-
-        showToast("Dados de demonstração gerados!");
-        setShowWizard(false);
-    } catch (e) { showToast("Erro ao gerar demo: " + e.message, 'error'); } finally { setLoading(false); }
-  };
-
-  const exportarBackup = () => {
-      // Exporta o estado atual, que deve refletir o BD se carregarDados foi chamado.
-      const dadosCompletos = {
-          unidades, despesas, pagamentos, avisos, zeladoria: patrimonio, enquetes, config
-      };
-      const blob = new Blob([JSON.stringify(dadosCompletos, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `backup_condoleve_${new Date().toISOString().split('T')[0]}.json`;
-      a.click();
-      showToast("Backup baixado!");
-  };
-
-  const importarBackup = async (e) => {
-      const file = e.target.files[0];
-      if(!file) return;
-      const reader = new FileReader();
-      reader.onload = async (evt) => {
-          try {
-              setLoading(true);
-              const json = JSON.parse(evt.target.result);
-              // Limpar tudo antes com segurança
-              await resetarSistema(true);
-
-              // Restaurar Config
-              if(json.config) {
-                  setConfig(json.config);
-                  await supabase.from('config_geral').upsert({ user_id: session.user.id, dados: json.config });
-              }
-              
-              // Passo 1: Unidades
-              let mapaUnidades = {};
-              if(json.unidades?.length) {
-                  // Inserir unidades uma a uma para recuperar os IDs novos
-                  for (const u of json.unidades) {
-                      const { data } = await supabase.from('unidades').insert({...u, user_id: session.user.id, id: undefined}).select().single();
-                      if(data) mapaUnidades[u.id] = data.id; // Mapeia ID antigo -> ID novo
-                  }
-              }
-              
-              // Passo 2: Pagamentos (usando mapa para manter vínculo)
-              if(json.pagamentos?.length) {
-                  const pags = json.pagamentos.map(p => ({
-                      ...p, 
-                      user_id: session.user.id, 
-                      id: undefined, 
-                      unidade_id: mapaUnidades[p.unidade_id] // Atualiza fk
-                  })).filter(p => p.unidade_id);
-                  if(pags.length) await supabase.from('pagamentos').insert(pags);
-              }
-
-              // Outras tabelas independentes
-              const independentes = [
-                  { nome: 'despesas', dados: json.despesas },
-                  { nome: 'avisos', dados: json.avisos },
-                  { nome: 'zeladoria', dados: json.zeladoria || json.patrimonio }, 
-                  { nome: 'enquetes', dados: json.enquetes }
-              ];
-
-              for (const tab of independentes) {
-                  if(tab.dados?.length) {
-                      const dadosClean = tab.dados.map(d => ({...d, user_id: session.user.id, id: undefined }));
-                      await supabase.from(tab.nome).insert(dadosClean);
-                  }
-              }
-
-              showToast("Backup restaurado com sucesso!");
-              await carregarDados(); // Recarrega do BD para garantir sincronia
-              setModalConfig(false);
-
-          } catch(err) { showToast("Erro ao restaurar: " + err.message, 'error'); } finally { setLoading(false); }
-      };
-      reader.readAsText(file);
-  };
-
-  const resetarSistema = async (silent = false) => {
-      setLoading(true);
-      try {
-          // Ordem de deleção importa para integridade referencial
-          // 1. Dependentes
-          await supabase.from('pagamentos').delete().eq('user_id', session.user.id);
-          
-          // 2. Independentes
-          await Promise.all([
-              supabase.from('despesas').delete().eq('user_id', session.user.id),
-              supabase.from('avisos').delete().eq('user_id', session.user.id),
-              supabase.from('zeladoria').delete().eq('user_id', session.user.id),
-              supabase.from('enquetes').delete().eq('user_id', session.user.id),
-              supabase.from('config_geral').delete().eq('user_id', session.user.id)
-          ]);
-
-          // 3. Pai de Dependentes
-          await supabase.from('unidades').delete().eq('user_id', session.user.id);
-          
-          setUnidades([]); setDespesas([]); setPagamentos([]); setAvisos([]); setPatrimonio([]); setEnquetes([]);
-          
-          if(!silent) {
-              showToast("Sistema resetado.");
-              setModalConfig(false);
-              setShowWizard(true);
-          }
-      } catch(e) { 
-          if(!silent) showToast("Erro ao resetar: " + e.message, 'error'); 
-      } finally { 
-          setLoading(false); 
-      }
-  };
-
-  const adicionarPagamento = async (unidadeId, valor, data, urlComprovante) => {
-      const novo = { user_id: session.user.id, unidade_id: unidadeId, valor, data, mes: mesAtual, ano: anoAtual, url_comprovante: urlComprovante };
-      const { data: dbData, error } = await supabase.from('pagamentos').insert(novo).select().single();
-      if (error) { showToast('Erro', 'error'); } 
-      else { setPagamentos(prev => [...prev, dbData]); showToast(`Pagamento registrado!`); }
-  };
-
-  const removerPagamento = async (pagamentoId) => {
-      setPagamentos(prev => prev.filter(p => p.id !== pagamentoId)); 
-      await supabase.from('pagamentos').delete().eq('id', pagamentoId);
-      showToast('Pagamento removido.');
-  };
-
-  const salvarNovaDespesa = async (despesaData, repetir) => {
-      const baseDespesa = { ...despesaData, user_id: session.user.id };
-      const [y, m, day] = baseDespesa.data.split('-');
-      const ano = parseInt(y);
-      const despesasParaInserir = [{ ...baseDespesa, mes: MESES[parseInt(m)-1], ano, data: baseDespesa.data.split('-').reverse().join('/') }];
-      if (repetir) {
-           const [anoInt, mesInt, diaInt] = baseDespesa.data.split('-').map(Number);
-           for (let i = mesInt + 1; i <= 12; i++) {
-                despesasParaInserir.push({ ...baseDespesa, mes: MESES[i-1], ano: anoInt, data: `${String(diaInt).padStart(2,'0')}/${String(i).padStart(2,'0')}/${anoInt}`, pago: false });
-           }
-      }
-      const { data: inserted, error } = await supabase.from('despesas').insert(despesasParaInserir).select();
-      if (error) { showToast('Erro ao salvar', 'error'); } 
-      else { setDespesas(prev => [...prev, ...inserted]); showToast('Despesa lançada!'); setModalNovaDespesa(false); }
-  };
-
-  const editarDespesa = async (d) => {
-     setDespesas(prev => prev.map(x => x.id === d.id ? { ...x, ...d } : x));
-     await supabase.from('despesas').update(d).eq('id', d.id);
-     showToast('Despesa atualizada');
-  };
-
-  const salvarConfig = async (novaConfig) => {
-     setConfig(novaConfig);
-     await supabase.from('config_geral').upsert({ user_id: session.user.id, dados: novaConfig }, { onConflict: 'user_id' });
-     showToast('Configurações salvas');
-  };
-
-  const getPagamentosMes = (unidade, chave) => { 
-      const [mes, ano] = chave.split('-');
-      return pagamentos.filter(p => p.unidade_id === unidade.id && p.mes === mes && String(p.ano) === String(ano));
-  };
-  const calcularTotalPago = (pags) => pags.reduce((acc, p) => acc + safeNum(p.valor), 0);
-  const fmt = (val) => modoPrivacidade ? 'R$ •••••' : formatarMoeda(val);
-
-  const unidadesFiltradas = useMemo(() => {
-    if (!busca) return unidades;
-    const b = busca.toLowerCase();
-    return unidades.filter(u => u.numero.toLowerCase().includes(b) || u.proprietario?.nome?.toLowerCase().includes(b) || u.inquilino?.nome?.toLowerCase().includes(b));
-  }, [unidades, busca]);
+  const exportarCSV = () => { let csv = "Data,Tipo,Descricao,Categoria,Valor\n"; pagamentos.forEach(p => { const uni = unidades.find(u=>u.id===p.unidade_id)?.numero || '?'; csv += `${p.data},Receita,Apto ${uni},Taxa Condominial,${p.valor}\n`; }); despesas.filter(d=>d.pago!==false).forEach(d => { csv += `${d.data},Despesa,${d.descricao},${d.categoria},${d.valor}\n`; }); const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const url = window.URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `Relatorio_${config.predioNome}_${mesAtual}.csv`; a.click(); };
   
-  const generateConicGradient = (data, total) => {
-    if(total === 0) return 'conic-gradient(#f1f5f9 0% 100%)';
-    let gradient = 'conic-gradient(';
-    let start = 0;
-    data.forEach((item, index) => {
-        const percentage = (item.value / total) * 100;
-        const color = CHART_COLORS[index % CHART_COLORS.length];
-        const end = start + percentage;
-        gradient += `${color} ${start}% ${end}%, `;
-        start = end;
-    });
-    return gradient.slice(0, -2) + ')';
+  const exportarBackup = () => {
+      try {
+          const backupData = { config, unidades, pagamentos, despesas, patrimonio, avisos, enquetes };
+          const blob = new Blob([JSON.stringify(backupData)], {type: 'application/json'});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `Backup_CondoLeve_${config.predioNome}_${new Date().toISOString().split('T')[0]}.json`;
+          a.click();
+          showToast("Backup (JSON) exportado com sucesso!");
+      } catch(e) { showToast("Erro ao exportar backup", "error"); }
   };
 
-  const copiarTexto = (txt) => { navigator.clipboard.writeText(txt).then(() => showToast('Copiado!')).catch(() => showToast('Erro')); };
+  const resetarSistema = async (silent = false) => { setLoading(true); try { await Promise.all([ supabase.from('pagamentos').delete().eq('condominio_id', cId), supabase.from('despesas').delete().eq('condominio_id', cId), supabase.from('avisos').delete().eq('condominio_id', cId), supabase.from('zeladoria').delete().eq('condominio_id', cId), supabase.from('enquetes').delete().eq('condominio_id', cId), supabase.from('unidades').delete().eq('condominio_id', cId), supabase.from('config_geral').delete().eq('condominio_id', cId), supabase.from('vinculos').delete().eq('condominio_id', cId) ]); await supabase.from('condominios').delete().eq('id', cId); if(!silent) { showToast("Condomínio resetado completamente."); setModalConfig(false); setTimeout(() => window.location.reload(), 1500); } } catch(e) { if(!silent) showToast("Erro ao resetar: " + e.message, 'error'); } finally { setLoading(false); } };
+
+  // Adicionar Pagamento com Hash
+  const adicionarPagamento = async (unidadeId, valor, data, urlComprovante) => { 
+      const hashGerado = gerarHashVerificador(unidadeId, valor, data);
+      const novo = { user_id: session.user.id, condominio_id: cId, unidade_id: unidadeId, valor, data, mes: mesAtual, ano: anoAtual, url_comprovante: urlComprovante, hash_recibo: hashGerado }; 
+      const { data: dbData, error } = await supabase.from('pagamentos').insert(novo).select().single(); 
+      if (error) showToast(`Erro ao salvar recebimento.`, 'error'); 
+      else { setPagamentos(prev => [...prev, dbData]); showToast(`Pagamento registrado com sucesso!`); } 
+  };
+  const removerPagamento = async (pagamentoId) => { setPagamentos(prev => prev.filter(p => p.id !== pagamentoId)); await supabase.from('pagamentos').delete().eq('id', pagamentoId); showToast('Pagamento removido do extrato.'); };
+  const atualizarComprovantePagamento = async (pagamentoId, novaUrl) => { setPagamentos(prev => prev.map(p => p.id === pagamentoId ? { ...p, url_comprovante: novaUrl } : p)); await supabase.from('pagamentos').update({ url_comprovante: novaUrl }).eq('id', pagamentoId); showToast('Comprovante anexado ao pagamento com sucesso!'); };
+  const enviarReciboWhatsApp = (pagamento, unidade) => { const hashExibicao = pagamento.hash_recibo || 'N/A'; const texto = `🧾 *RECIBO DE PAGAMENTO*\n\n🏢 Condomínio: *${config.predioNome}*\n🏠 Unidade: *${unidade.numero}*\n💰 Valor Recebido: *${fmt(pagamento.valor)}*\n📅 Data de Pagamento: *${pagamento.data}*\n\n✅ Pagamento confirmado pelo síndico.\n🔐 Autenticidade: ${hashExibicao}\n\n_Gerado pelo app CondoLeve_`; window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank'); };
+
+  // CRUD base
+  const salvarNovaDespesa = async (despesaData, repetir) => { const baseDespesa = { ...despesaData, user_id: session.user.id, condominio_id: cId }; const [y, m, day] = baseDespesa.data.split('-'); const ano = parseInt(y); const despesasParaInserir = [{ ...baseDespesa, mes: MESES[parseInt(m)-1], ano, data: baseDespesa.data.split('-').reverse().join('/') }]; if (repetir) { const [anoInt, mesInt, diaInt] = baseDespesa.data.split('-').map(Number); for (let i = mesInt + 1; i <= 12; i++) { despesasParaInserir.push({ ...baseDespesa, mes: MESES[i-1], ano: anoInt, data: `${String(diaInt).padStart(2,'0')}/${String(i).padStart(2,'0')}/${anoInt}`, pago: false }); } } const { data: inserted, error } = await supabase.from('despesas').insert(despesasParaInserir).select(); if (error) showToast('Erro ao salvar', 'error'); else { setDespesas(prev => [...prev, ...inserted]); showToast('Despesa lançada com sucesso!'); setModalNovaDespesa(false); } };
+  const editarDespesa = async (d) => { setDespesas(prev => prev.map(x => x.id === d.id ? { ...x, ...d } : x)); await supabase.from('despesas').update(d).eq('id', d.id); showToast('Despesa atualizada com sucesso.'); };
+  const apagarDespesa = async (id) => { await supabase.from('despesas').delete().eq('id', id); setDespesas(despesas.filter(x=>x.id!==id)); showToast("Despesa excluída."); };
+  const salvarAviso = async (item) => { const {data, error} = await supabase.from('avisos').insert({...item, user_id:session.user.id, condominio_id: cId}).select().single(); if(!error) { setAvisos([data, ...avisos]); showToast('Aviso publicado!'); } };
+  const apagarAviso = async (id) => { await supabase.from('avisos').delete().eq('id',id); setAvisos(avisos.filter(a=>a.id!==id)); showToast('Aviso excluído.'); };
+  
+  const salvarEnquete = async (item) => { const {data, error} = await supabase.from('enquetes').insert({...item, user_id:session.user.id, condominio_id: cId}).select().single(); if(!error) { setEnquetes([data, ...enquetes]); showToast('Votação criada!'); } };
+  const registrarVotoEnquete = async (enqueteId, voto, unidadeId) => { 
+      const e = enquetes.find(x => x.id === enqueteId); 
+      if(!e) return; 
+      
+      let novaOpcoes = { sim: 0, nao: 0, votosDetalhados: {}, votaram: [], ...e.opcoes }; 
+      if (novaOpcoes.votaram && !novaOpcoes.votosDetalhados) {
+          novaOpcoes.votosDetalhados = {}; 
+      }
+
+      const votoAnterior = novaOpcoes.votosDetalhados[unidadeId];
+      if (votoAnterior === voto) return; 
+
+      if (votoAnterior) { novaOpcoes[votoAnterior] = Math.max(0, novaOpcoes[votoAnterior] - 1); }
+      novaOpcoes[voto] = (novaOpcoes[voto] || 0) + 1;
+      novaOpcoes.votosDetalhados[unidadeId] = voto;
+      
+      if (!novaOpcoes.votaram.includes(unidadeId)) {
+          novaOpcoes.votaram.push(unidadeId);
+      }
+
+      setEnquetes(prev => prev.map(x => x.id === enqueteId ? { ...x, opcoes: novaOpcoes } : x)); 
+      const { error } = await supabase.from('enquetes').update({ opcoes: novaOpcoes }).eq('id', enqueteId); 
+      if(error) showToast("Erro", "error"); else showToast(votoAnterior ? "Voto alterado!" : "Voto computado com sucesso!"); 
+  };
+  const apagarEnquete = async (id) => { await supabase.from('enquetes').delete().eq('id',id); setEnquetes(enquetes.filter(e=>e.id!==id)); showToast('Enquete excluída.'); };
+  
+  const abrirChamadoManutencao = async (item) => { const {data, error} = await supabase.from('zeladoria').insert({...item, user_id:session.user.id, condominio_id: cId}).select().single(); if(!error) { setPatrimonio([data, ...patrimonio]); showToast("Chamado aberto!"); } };
+  const toggleStatusManutencao = async (id, concluido) => { setPatrimonio(prev => prev.map(p => p.id === id ? { ...p, concluido } : p)); await supabase.from('zeladoria').update({ concluido }).eq('id', id); showToast(concluido ? 'Chamado resolvido!' : 'Chamado reaberto.'); };
+  const apagarManutencao = async (id) => { await supabase.from('zeladoria').delete().eq('id',id); setPatrimonio(patrimonio.filter(p=>p.id!==id)); showToast('Chamado excluído.'); };
+  const salvarConfig = async (novaConfig) => { setConfig(novaConfig); await supabase.from('config_geral').upsert({ user_id: session.user.id, condominio_id: cId, dados: novaConfig }, { onConflict: 'condominio_id' }); showToast('Configurações salvas!'); };
+
+  const processarAprovacao = async (pedido, aprovado) => { 
+      const novaFila = config.filaAprovacao.filter(f => f.id !== pedido.id); 
+      if (aprovado) { 
+          const unit = unidades.find(u => u.numero === pedido.numero); 
+          if (unit) { 
+              await supabase.from('unidades').update({ linked_user_id: pedido.userId }).eq('id', unit.id); 
+              await supabase.from('vinculos').insert({ user_id: pedido.userId, condominio_id: cId, role: 'morador', unidade_id: unit.id }); 
+              setUnidades(prev => prev.map(u => u.id === unit.id ? { ...u, linked_user_id: pedido.userId } : u)); 
+              showToast(`Acesso aprovado para o Apto ${unit.numero}!`); 
+          } else {
+              showToast("Unidade não encontrada.", "error"); 
+          }
+      } else {
+          showToast("Solicitação rejeitada."); 
+      }
+      salvarConfig({ ...config, filaAprovacao: novaFila }); 
+  };
+
+  const getPagamentosMes = (unidade, chave) => { const [mes, ano] = chave.split('-'); return pagamentos.filter(p => p.unidade_id === unidade.id && p.mes === mes && String(p.ano) === String(ano)); };
+  const calcularTotalPago = (pags) => pags.reduce((acc, p) => acc + safeNum(p.valor), 0);
+  const fmt = (val) => formatarMoeda(val);
+  const fmtPriv = (val) => modoPrivacidade ? 'R$ •••••' : formatarMoeda(val);
+  const copiarTexto = (txt) => { navigator.clipboard.writeText(txt).then(() => showToast('Copiado para a área de transferência!')).catch(() => showToast('Erro ao copiar', 'error')); };
   const chaveAtual = `${mesAtual}-${anoAtual}`;
   
-  const { receitaMes, gastoMes, despesasFiltradas, gastosPorCategoria, saldoAteMomento, historicoGrafico } = useMemo(() => {
-      const pgs = unidades.filter(u => getPagamentosMes(u, chaveAtual).length > 0);
-      const rec = pgs.reduce((acc, u) => acc + calcularTotalPago(getPagamentosMes(u, chaveAtual)), 0);
+  // INADIMPLÊNCIA ACUMULADA - CÁLCULO PRECISO
+  const { unidadesFiltradas, inadimplenciaGlobal } = useMemo(() => { 
+      let uFilter = unidades;
+      if (busca) {
+          const b = busca.toLowerCase(); 
+          uFilter = uFilter.filter(u => u.numero.toLowerCase().includes(b) || safeStr(u.proprietario?.nome).toLowerCase().includes(b) || safeStr(u.inquilino?.nome).toLowerCase().includes(b));
+      }
+
+      const devedoresGlobais = [];
+      const valorDevidoMensal = safeNum(config.valorCondominio);
       
-      const dps = despesas.filter(d => d.mes === mesAtual && String(d.ano) === String(anoAtual));
-      const gas = dps.reduce((acc, d) => acc + safeNum(d.valor), 0);
+      if (valorDevidoMensal > 0) {
+          const dataInicioApp = config.inicioOperacao ? config.inicioOperacao.split('-') : [new Date().getFullYear(), String(new Date().getMonth() + 1).padStart(2, '0')];
+          const startYear = parseInt(dataInicioApp[0]);
+          const startMonth = parseInt(dataInicioApp[1]) - 1; // 0-indexed
+          const startIndex = getAbsoluteMonthIndex(startYear, startMonth);
+          
+          const dataAtual = new Date();
+          const currentRealIndex = getAbsoluteMonthIndex(dataAtual.getFullYear(), dataAtual.getMonth());
+          
+          unidades.forEach(u => {
+              let mesesAtraso = 0;
+              let valorTotalDevido = 0;
+
+              for (let i = startIndex; i <= currentRealIndex; i++) {
+                  const iterYear = Math.floor(i / 12);
+                  const iterMonthStr = MESES[i % 12];
+                  const pagsNoMes = pagamentos.filter(p => p.unidade_id === u.id && p.mes === iterMonthStr && String(p.ano) === String(iterYear));
+                  const pagoNoMes = calcularTotalPago(pagsNoMes);
+                  
+                  if (pagoNoMes < valorDevidoMensal) {
+                      mesesAtraso++;
+                      valorTotalDevido += (valorDevidoMensal - pagoNoMes);
+                  }
+              }
+
+              if (mesesAtraso > 0) {
+                  devedoresGlobais.push({ unidade: u, mesesAtraso, valorTotalDevido });
+              }
+          });
+      }
+
+      return { unidadesFiltradas: uFilter, inadimplenciaGlobal: devedoresGlobais };
+  }, [unidades, busca, pagamentos, config]);
+
+  const enviarWhatsAppCobranca = (dev) => {
+      const u = dev.unidade;
+      const foneRaw = safeStr(u.mora_proprietario ? u.proprietario?.telefone : u.inquilino?.telefone);
+      const foneNumeros = foneRaw.replace(/\D/g,'');
       
-      const catMap = {}; dps.forEach(d => { const cat = d.categoria || 'Outros'; catMap[cat] = (catMap[cat] || 0) + safeNum(d.valor); });
+      if (!foneNumeros || foneNumeros.length < 10) {
+          showToast("Morador sem WhatsApp válido cadastrado. Edite o Apto primeiro.", "error");
+          return;
+      }
+
+      const texto = `🏢 *${config.predioNome}*\n\nOlá, morador(a) do *Apto ${u.numero}*.\n\nConsta em nosso sistema um débito de *${fmt(dev.valorTotalDevido)}* referente a ${dev.mesesAtraso} ${dev.mesesAtraso > 1 ? 'cotas pendentes' : 'cota pendente'} de condomínio.\n\nEvite juros e multas regularizando sua situação.\n\n🔑 Nossa Chave PIX: *${config.chavePix}*\n\nPor favor, envie o comprovante assim que realizar o pagamento.\nQualquer dúvida, estou à disposição.`;
+      window.open(`https://wa.me/55${foneNumeros}?text=${encodeURIComponent(texto)}`, '_blank');
+  };
+
+  // Lógica Matemática dos Gráficos
+  const { receitaMes, gastoMes, gastoPagoMes, despesasFiltradas, gastosPorCategoria, saldoTotalReal, saldoAteMesSelecionado, historicoEvolutivo, potencialMes } = useMemo(() => {
+      const pgsSelecionado = unidades.filter(u => getPagamentosMes(u, chaveAtual).length > 0);
+      const rec = pgsSelecionado.reduce((acc, u) => acc + calcularTotalPago(getPagamentosMes(u, chaveAtual)), 0);
+      
+      const dpsSelecionado = despesas.filter(d => d.mes === mesAtual && String(d.ano) === String(anoAtual));
+      const gas = dpsSelecionado.reduce((acc, d) => acc + safeNum(d.valor), 0);
+      const gasPago = dpsSelecionado.filter(d => d.pago !== false).reduce((acc, d) => acc + safeNum(d.valor), 0);
+      
+      const catMap = {}; dpsSelecionado.forEach(d => { const cat = d.categoria || 'Outros'; catMap[cat] = (catMap[cat] || 0) + safeNum(d.valor); });
       const categoriasChart = Object.keys(catMap).map(c => ({ name: c, value: catMap[c] })).sort((a,b) => b.value - a.value);
       
-      const totalEntradas = pagamentos.reduce((acc, p) => acc + Number(p.valor), 0);
-      const totalSaidas = despesas.filter(d => d.pago).reduce((acc, d) => acc + Number(d.valor), 0);
-      const saldoTotal = safeNum(config.saldoInicial) + totalEntradas - totalSaidas;
+      const totalEntradasAll = pagamentos.reduce((acc, p) => acc + Number(p.valor), 0);
+      const totalSaidasAll = despesas.filter(d => d.pago).reduce((acc, d) => acc + Number(d.valor), 0);
+      const saldoGlobalHoje = safeNum(config.saldoInicial) + totalEntradasAll - totalSaidasAll;
       
-      const historico = [];
-      // Gráfico de 6 meses - Lógica Fixada
-      for (let i = 5; i >= 0; i--) {
-          const d = new Date(); 
-          d.setMonth(d.getMonth() - i);
-          const mNome = MESES[d.getMonth()]; 
-          const yNum = d.getFullYear();
-          
-          // Filtros robustos
-          const r = pagamentos
-            .filter(p => p.mes === mNome && String(p.ano) === String(yNum))
-            .reduce((sum, p) => sum + Number(p.valor), 0);
-          
-          const g = despesas
-            .filter(x => x.mes === mNome && String(x.ano) === String(yNum) && (x.pago !== false))
-            .reduce((sum, x) => sum + Number(x.valor), 0);
-          
-          historico.push({ mes: mNome.substr(0,3), receita: r, despesa: g });
+      const selectedMonthKey = getMonthKey(mesAtual, anoAtual);
+      const entradasAteSelecionado = pagamentos.filter(p => getMonthKey(p.mes, p.ano) <= selectedMonthKey).reduce((acc, p) => acc + Number(p.valor), 0);
+      const saidasAteSelecionado = despesas.filter(d => d.pago && getMonthKey(d.mes, d.ano) <= selectedMonthKey).reduce((acc, d) => acc + Number(d.valor), 0);
+      const saldoAteSelected = safeNum(config.saldoInicial) + entradasAteSelecionado - saidasAteSelecionado;
+
+      const hist = [];
+      const mesSelecionadoIndex = MESES.indexOf(mesAtual);
+      
+      for (let i = 5; i >= 0; i--) { 
+          const d = new Date(anoAtual, mesSelecionadoIndex - i, 1);
+          const mStr = MESES[d.getMonth()];
+          const aNum = d.getFullYear();
+          const loopKey = getMonthKey(mStr, aNum);
+
+          const recMesLoop = pagamentos.filter(p => p.mes === mStr && String(p.ano) === String(aNum)).reduce((acc, p) => acc + Number(p.valor), 0);
+          const despMesLoop = despesas.filter(d => d.pago !== false && d.mes === mStr && String(d.ano) === String(aNum)).reduce((acc, d) => acc + Number(d.valor), 0);
+
+          const entAteLoop = pagamentos.filter(p => getMonthKey(p.mes, p.ano) <= loopKey).reduce((acc, p) => acc + Number(p.valor), 0);
+          const saiAteLoop = despesas.filter(d => d.pago !== false && getMonthKey(d.mes, d.ano) <= loopKey).reduce((acc, d) => acc + Number(d.valor), 0);
+          const saldoAbsolutoFimMes = safeNum(config.saldoInicial) + entAteLoop - saiAteLoop;
+
+          hist.push({ mesLabel: `${mStr.substr(0,3).toUpperCase()}/${String(aNum).substr(2,2)}`, receita: recMesLoop, despesa: despMesLoop, saldoFinal: saldoAbsolutoFimMes });
       }
-      return { receitaMes: rec, gastoMes: gas, despesasFiltradas: dps, gastosPorCategoria: categoriasChart, saldoAteMomento: saldoTotal, historicoGrafico: historico };
+
+      const pot = unidades.length * safeNum(config.valorCondominio);
+
+      return { receitaMes: rec, gastoMes: gas, gastoPagoMes: gasPago, despesasFiltradas: dpsSelecionado, gastosPorCategoria: categoriasChart, saldoTotalReal: saldoGlobalHoje, saldoAteMesSelecionado: saldoAteSelected, historicoEvolutivo: hist, potencialMes: pot };
   }, [unidades, despesas, pagamentos, chaveAtual, config]);
 
-  if (loading && unidades.length === 0 && pagamentos.length === 0) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><RefreshCw className="animate-spin text-[#84cc16]"/><p className="ml-4 font-black text-[#1e293b]">Carregando Dados...</p></div>;
-  if (modoMorador && unidadeMorador) return <ModoMorador unidade={unidadeMorador} config={config} onExit={() => setModoMorador(false)} mesAtual={mesAtual} anoAtual={anoAtual} getPagamentosMes={getPagamentosMes} calcularTotalPago={calcularTotalPago} fmt={fmt} unidades={unidades} avisos={avisos} enquetes={enquetes} patrimonio={patrimonio} showToast={showToast} copiarTexto={copiarTexto} supabase={supabase} />;
+  const generateConicGradient = (data, total) => { if(total === 0) return 'conic-gradient(#f1f5f9 0% 100%)'; let gradient = 'conic-gradient('; let start = 0; data.forEach((item, index) => { const percentage = (item.value / total) * 100; gradient += `${CHART_COLORS[index % CHART_COLORS.length]} ${start}% ${start + percentage}%, `; start += percentage; }); return gradient.slice(0, -2) + ')'; };
+
+  if (loading && unidades.length === 0 && pagamentos.length === 0) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><RefreshCw className="animate-spin text-[#84cc16]"/><p className="ml-4 font-black text-[#1e293b]">Carregando Condomínio...</p></div>;
+  
+  // MODO IMPRESSÃO
+  if (printMode === 'cartaz') {
+      return (
+          <div className="bg-white min-h-screen p-10 font-sans">
+              <div className="text-center mb-10 border-b-4 border-[#1e293b] pb-6"><h1 className="text-5xl font-black text-[#1e293b] uppercase tracking-tighter mb-2">Informações Úteis</h1><h2 className="text-2xl font-bold text-slate-500">{config.predioNome}</h2></div>
+              <div className="grid grid-cols-2 gap-8">{config.telefonesUteis && config.telefonesUteis.map((t, idx) => (<div key={idx} className="border-2 border-slate-200 p-6 rounded-3xl"><p className="text-xl font-black text-slate-400 uppercase tracking-widest mb-2">{t.nome}</p><p className="text-3xl font-black text-slate-800 break-words">{t.numero}</p></div>))}</div>
+              <div className="mt-16 text-center border-t-2 border-slate-100 pt-8"><p className="text-lg font-bold text-slate-400">Síndico: <span className="text-slate-800">{config.sindicaNome}</span> • {config.telefoneSindico}</p><div className="mt-8 opacity-50"><Logo variant="simple" width="w-40" className="mx-auto" /></div></div>
+              <div className="fixed bottom-4 left-0 right-0 text-center no-print"><button onClick={() => setPrintMode(null)} className="bg-slate-800 text-white px-6 py-2 rounded-xl font-bold">Voltar ao App</button></div>
+          </div>
+      );
+  }
+
+  // APP MORADOR
+  if (modoMorador && unidadeMorador) return <ModoMorador unidade={unidadeMorador} config={config} onExit={() => { if(isSindico) { setModoMorador(false); setUnidadeMorador(null); } else { onSwitch(); } }} mesAtual={mesAtual} anoAtual={anoAtual} getPagamentosMes={getPagamentosMes} calcularTotalPago={calcularTotalPago} fmt={fmt} avisos={avisos} enquetes={enquetes} patrimonio={patrimonio} showToast={showToast} copiarTexto={copiarTexto} abrirChamado={abrirChamadoManutencao} registrarVoto={registrarVotoEnquete} modalInstalar={modalInstalar} setModalInstalar={setModalInstalar} setPrintMode={setPrintMode} pagamentosCompletos={pagamentos} setModalReciboVisual={setModalReciboVisual} supabase={supabase} unidadesTotal={unidades.length} />;
+
+  const maxSaldoEvolucao = Math.max(...historicoEvolutivo.map(h => h.saldoFinal), 1);
+  const filaPendente = config.filaAprovacao?.length || 0;
+  const porcentagemArrecadada = potencialMes > 0 ? (receitaMes / potencialMes) * 100 : 0;
+  const porcentagemGastoPago = gastoMes > 0 ? (gastoPagoMes / gastoMes) * 100 : 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-28 print:bg-white print:pb-0">
-       <style>{`@media print { .no-print { display: none !important; } .print-area { display: block !important; position: absolute; top:0; left:0; width:100%; height:100%; z-index:9999; background:white; } }`}</style>
-       {showWizard && <SetupWizard config={config} setConfig={setConfig} setUnidades={setUnidades} onDemo={gerarDadosFake} onComplete={async () => { setShowWizard(false); await salvarConfig(config); }} supabase={supabase} session={session} />}
-       <div className="bg-[#1e293b] text-white py-3 px-4 flex justify-between items-center sticky top-0 z-40 no-print border-b border-white/5 shadow-xl">
-         <div className="flex gap-3 items-center"><div className="bg-white p-1 rounded-lg shadow-sm"><Logo variant="icon" width="w-8" /></div><div><span className="font-black text-sm truncate max-w-[180px] block leading-tight tracking-tight">{safeStr(config.predioNome || "CondoLeve")}</span><span className="text-[10px] text-slate-400 font-bold opacity-80">{safeStr(config.sindicaNome).split(' ')[0]}</span></div></div>
-         <div className="flex gap-2 items-center"><button onClick={() => setModalConfig(true)} className="bg-white/10 hover:bg-white/20 p-2 rounded-xl transition flex items-center gap-2"><Settings size={18}/><span className="text-[9px] text-slate-400 font-mono hidden sm:inline-block border-l border-white/20 pl-2 ml-1">v{APP_VERSION}</span></button><button onClick={() => supabase.auth.signOut()} className="bg-red-500/20 hover:bg-red-500/40 p-2 rounded-xl transition text-red-200"><LogOutIcon size={18}/></button></div>
+    <div className={`min-h-screen bg-slate-50 font-sans text-slate-800 pb-28 overflow-x-hidden ${printMode ? 'hidden print:block' : 'print:hidden'}`}>
+       
+       {/* HEADER FIXO SUPERIOR */}
+       <div className="bg-[#1e293b] text-white py-3 px-4 flex justify-between items-center sticky top-0 z-40 border-b border-white/5 shadow-xl">
+         <div className="flex gap-3 items-center">
+             <div className="bg-white p-1 rounded-lg shadow-sm"><Logo variant="icon" width="w-8" /></div>
+             <button onClick={onSwitch} className="text-left group cursor-pointer hover:opacity-80 transition">
+                 <span className="font-black text-sm truncate max-w-[150px] sm:max-w-xs block leading-tight tracking-tight flex items-center gap-1">{safeStr(config.predioNome)} <RotateCcw size={12} className="text-slate-500 group-hover:text-[#84cc16]"/></span>
+                 <span className="text-[10px] text-slate-400 font-bold opacity-80 flex items-center gap-1"><Crown size={10}/> Gestor</span>
+             </button>
+         </div>
+         <div className="flex gap-2 items-center">
+             {filaPendente > 0 && ( <button onClick={() => setModalFila(true)} className="relative p-2 bg-red-500 text-white rounded-xl shadow-lg hover:bg-red-600 transition animate-bounce"><UserPlus size={18}/><span className="absolute -top-1 -right-1 w-4 h-4 bg-white text-red-500 font-black text-[9px] rounded-full flex items-center justify-center border-2 border-red-500">{filaPendente}</span></button> )}
+             <button onClick={() => setModalInstalar(true)} className="bg-[#84cc16]/10 text-[#84cc16] hover:bg-[#84cc16]/20 py-1.5 px-3 rounded-xl transition flex items-center gap-2 font-black text-[10px]"><MonitorPlay size={14}/> BAIXAR APP</button>
+             <button onClick={() => setModalConfig(true)} className="bg-white/10 hover:bg-white/20 p-2 rounded-xl transition flex items-center gap-2"><Settings size={18}/></button>
+         </div>
        </div>
-       <header className="bg-[#1e293b] text-white pt-6 px-6 pb-12 no-print relative overflow-hidden text-center">
+
+       {/* HEADER PADRÃO (SEMPRE VISÍVEL) */}
+       <header className="bg-[#1e293b] text-white pt-6 px-6 pb-12 relative overflow-hidden text-center">
          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none transform translate-x-1/4 -translate-y-1/4"><Logo variant="icon" width="w-64" /></div>
-         <div className="max-w-4xl mx-auto"><div className="bg-white/5 backdrop-blur-md p-2 rounded-2xl flex items-center justify-between border border-white/10 w-full max-w-xs mx-auto mb-4"><button onClick={() => { const idx = MESES.indexOf(mesAtual); if(idx > 0) setMesAtual(MESES[idx-1]); else { setAnoAtual(anoAtual-1); setMesAtual(MESES[11]); } }} className="p-3 hover:bg-white/10 rounded-xl transition"><TrendingDown className="rotate-90 w-4 h-4 text-[#84cc16]"/></button><div><span className="font-black text-xl tracking-tight uppercase">{safeStr(mesAtual)}</span><p className="text-[9px] font-bold text-slate-400 tracking-widest leading-none mt-1">{safeStr(anoAtual)}</p></div><button onClick={() => { const idx = MESES.indexOf(mesAtual); if(idx < 11) setMesAtual(MESES[idx+1]); else { setAnoAtual(anoAtual+1); setMesAtual(MESES[0]); } }} className="p-3 hover:bg-white/10 rounded-xl transition"><TrendingUp className="rotate-90 w-4 h-4 text-[#84cc16]"/></button></div><div className="flex gap-6 justify-center mt-2 items-center relative"><div><p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Entradas</p><p className="font-black text-green-400">{fmt(receitaMes)}</p></div><div className="h-10 w-px bg-white/10"></div><div><p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Saídas</p><p className="font-black text-red-400">-{fmt(gastoMes)}</p></div><div className="relative ml-2"><button onClick={() => setModoPrivacidade(!modoPrivacidade)} className={`p-2 rounded-full transition ${modoPrivacidade ? 'bg-[#84cc16] text-[#1e293b]' : 'bg-white/10 text-slate-400 hover:bg-white/20'}`}>{modoPrivacidade ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div></div></div>
+         <div className="max-w-4xl mx-auto">
+             <div className="bg-white/5 backdrop-blur-md p-2 rounded-2xl flex items-center justify-between border border-white/10 w-full max-w-xs mx-auto mb-4">
+                 <button onClick={() => { const idx = MESES.indexOf(mesAtual); if(idx > 0) setMesAtual(MESES[idx-1]); else { setAnoAtual(anoAtual-1); setMesAtual(MESES[11]); } }} className="p-3 hover:bg-white/10 rounded-xl transition"><TrendingDown className="rotate-90 w-4 h-4 text-[#84cc16]"/></button>
+                 <div><span className="font-black text-xl tracking-tight uppercase">{safeStr(mesAtual)}</span><p className="text-[9px] font-bold text-slate-400 tracking-widest leading-none mt-1">{safeStr(anoAtual)}</p></div>
+                 <button onClick={() => { const idx = MESES.indexOf(mesAtual); if(idx < 11) setMesAtual(MESES[idx+1]); else { setAnoAtual(anoAtual+1); setMesAtual(MESES[0]); } }} className="p-3 hover:bg-white/10 rounded-xl transition"><TrendingUp className="rotate-90 w-4 h-4 text-[#84cc16]"/></button>
+             </div>
+             <div className="flex gap-6 justify-center mt-2 items-center relative">
+                 <div><p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Entradas</p><p className="font-black text-green-400">{fmtPriv(receitaMes)}</p></div>
+                 <div className="h-10 w-px bg-white/10"></div>
+                 <div><p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Saídas</p><p className="font-black text-red-400">-{fmtPriv(gastoMes)}</p></div>
+                 <div className="relative ml-2"><button onClick={() => setModoPrivacidade(!modoPrivacidade)} className={`p-2 rounded-full transition ${modoPrivacidade ? 'bg-[#84cc16] text-[#1e293b]' : 'bg-white/10 text-slate-400 hover:bg-white/20'}`}>{modoPrivacidade ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
+             </div>
+         </div>
        </header>
-       <main className="max-w-4xl mx-auto p-4 -mt-8 relative z-10 no-print">
-         {abaAtiva === 'receitas' && (<div className="space-y-4 animate-in fade-in duration-500"><div className="grid gap-3">{unidadesFiltradas.length > 0 ? unidadesFiltradas.map(u => { const valorDevido = safeNum(config.valorCondominio); const pags = getPagamentosMes(u, chaveAtual); const totalPago = calcularTotalPago(pags); const isPago = totalPago >= valorDevido; const isParcial = totalPago > 0 && totalPago < valorDevido; return (<Card key={u.id} className={`p-4 border-l-[6px] transition-all hover:shadow-md ${isPago ? 'border-l-[#84cc16]' : (isParcial ? 'border-l-yellow-400' : 'border-l-slate-200')}`}><div className="flex items-center justify-between gap-4"><div className="flex gap-4 items-center text-left"><div className="w-14 h-14 bg-slate-50 rounded-2xl font-black flex items-center justify-center text-slate-400 text-lg border border-slate-100 relative">{safeStr(u.numero)}{u.linked_user_id && <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>}</div><div><p className="font-black text-slate-800 flex items-center gap-2">{safeStr(u.mora_proprietario ? (u.proprietario?.nome || "Proprietário") : (u.inquilino?.nome || "Morador"))} <button onClick={() => setModalEditar(u)} className="text-slate-300 hover:text-blue-500"><Pencil size={12}/></button></p><div className="mt-1">{totalPago > 0 ? <span className={`text-[10px] font-black uppercase tracking-tighter flex items-center gap-1 ${isPago ? 'text-[#84cc16]' : 'text-yellow-600'}`}><CheckCircle size={10}/> {isPago ? 'PAGO' : 'PARCIAL'} • {fmt(totalPago)}</span> : <span className="text-[10px] font-black text-slate-400 tracking-wide uppercase">PENDENTE • {fmt(valorDevido)}</span>}</div></div></div><div className="flex flex-col items-end gap-2">{totalPago > 0 ? <button onClick={() => setModalDetalhesUnidade({ u, mes: mesAtual, ano: anoAtual, pags, totalPago, valorDevido })} className="text-[10px] bg-slate-100 text-slate-600 font-black px-4 py-2 rounded-xl hover:bg-slate-200 flex items-center gap-2"><Eye size={12}/> DETALHES</button> : <button onClick={() => setModalPagamento({ unidadeId: u.id, valorSugerido: valorDevido })} className="bg-[#1e293b] text-white text-[10px] font-black px-6 py-3 rounded-2xl shadow-lg active:scale-95 transition">RECEBER</button>}</div></div></Card>); }) : <EmptyState icon={Home} title="Nenhum Apartamento" desc="Você ainda não cadastrou nenhuma unidade." />}</div></div>)}
-         {abaAtiva === 'despesas' && (<div className="space-y-4 animate-in fade-in duration-500"><Card className="p-6 bg-white border-l-[6px] border-l-red-500 shadow-xl flex justify-between items-center text-left"><div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total de Gastos</p><p className="text-3xl font-black text-red-600">{fmt(gastoMes)}</p></div><button onClick={() => setModalNovaDespesa(true)} className="bg-red-500 text-white px-5 py-4 rounded-2xl font-black text-xs shadow-lg flex items-center gap-2 hover:bg-red-600 transition"><PlusCircle size={18}/> LANÇAR CONTA</button></Card>{despesasFiltradas.length === 0 && (<div className="mt-4"><EmptyState icon={ArrowDownCircle} title="Tudo tranquilo por aqui" desc={`Nenhuma despesa lançada em ${mesAtual}.`} action={() => setModalNovaDespesa(true)} label="Lançar Conta"/></div>)}<div className="grid gap-2">{despesasFiltradas.map(d => { const isPago = d.pago !== false; return (<Card key={d.id} className={`p-4 flex flex-col sm:flex-row justify-between items-center text-left border-l-4 ${isPago ? 'border-l-green-500' : 'border-l-orange-400 bg-orange-50/10'}`}><div className="w-full sm:w-auto"><p className={`font-black flex items-center gap-2 text-slate-800`}>{safeStr(d.descricao)}{d.url_comprovante && <a href={d.url_comprovante} target="_blank" rel="noopener noreferrer" className="bg-slate-100 text-slate-500 p-1 rounded-md hover:bg-blue-100 hover:text-blue-600 transition"><Paperclip size={12}/></a>}</p><div className="flex gap-2 mt-1"><div className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">{getIconeCategoria(d.categoria)}<span className="text-[9px] uppercase font-black text-slate-500">{safeStr(d.categoria)}</span></div><span className="text-[10px] font-bold text-slate-400 self-center">{safeStr(d.data)}</span></div></div><div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end mt-4 sm:mt-0"><div className="text-right mr-2"><p className={`font-black ${isPago ? 'text-slate-800' : 'text-orange-500'}`}>-{fmt(d.valor)}</p><span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${isPago ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600'}`}>{isPago ? 'PAGO' : 'PENDENTE'}</span></div><div className="flex gap-1 items-center"><button onClick={() => editarDespesa({...d, pago: !isPago})} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase transition flex items-center gap-1 shadow-sm ${isPago ? 'bg-slate-100 text-slate-400 hover:bg-slate-200' : 'bg-green-500 text-white hover:bg-green-600'}`}>{isPago ? <RotateCcw size={12}/> : <Check size={12}/>} {isPago ? 'DESFAZER' : 'PAGAR'}</button><button onClick={() => setModalEditarDespesa(d)} className="p-2 text-slate-300 hover:text-blue-500"><Edit size={16}/></button><button onClick={() => setConfirmacao({ titulo: "Apagar Conta?", texto: "Tem certeza que deseja apagar este lançamento?", onConfirm: () => { supabase.from('despesas').delete().eq('id', d.id).then(()=>setDespesas(despesas.filter(x=>x.id!==d.id))); setConfirmacao(null); } })} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16}/></button></div></div></Card>); })}</div></div>)}
-         {abaAtiva === 'caixa' && (<div className="space-y-6 animate-in fade-in duration-500 text-left"><div className="bg-[#1e293b] text-white p-8 rounded-[32px] shadow-2xl relative overflow-hidden"><div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none transform translate-x-1/4 -translate-y-1/4"><Wallet size={200}/></div><div className="relative z-10 flex flex-col md:flex-row justify-between md:items-end gap-6"><div><p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Saldo em Caixa</p><h2 className="text-4xl sm:text-5xl font-black mb-4 tracking-tighter">{fmt(saldoAteMomento)}</h2><div className="pt-4 border-t border-white/10 flex items-center gap-2"><History size={12} className="text-slate-400"/> <span className="text-[10px] text-slate-400 uppercase font-bold">Acumulado até {safeStr(mesAtual)}/{safeStr(anoAtual)}</span></div></div><button onClick={() => setModalRelatorio(true)} className="bg-[#84cc16] text-[#1e293b] py-3 px-6 rounded-2xl font-black text-xs shadow-xl flex items-center justify-center gap-2 hover:bg-[#a3e635] transition w-full md:w-auto"><FileBarChart size={18}/> PRESTAÇÃO DE CONTAS</button></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><Card className="p-6"><div className="flex justify-between items-center mb-6"><h3 className="text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><BarChart3 size={14}/> Fluxo de Caixa (6 Meses)</h3></div><div className="flex items-end gap-2 h-40">{historicoGrafico.map((h, i) => { const maxVal = Math.max(...historicoGrafico.map(x=>Math.max(x.receita, x.despesa))) || 1; return (<div key={i} className="flex-1 flex flex-col justify-end items-center gap-1 group relative"><div className="w-full bg-slate-50 rounded-lg relative flex items-end justify-center overflow-hidden gap-1 px-0.5" style={{height: '100%'}}><div className="flex-1 bg-red-400 rounded-t-sm" style={{height: `${(h.despesa / maxVal) * 100}%`}}></div><div className="flex-1 bg-[#84cc16] rounded-t-sm" style={{height: `${(h.receita / maxVal) * 100}%`}}></div></div><span className="text-[9px] font-bold text-slate-400 uppercase">{h.mes}</span><div className="absolute bottom-full mb-1 hidden group-hover:block bg-[#1e293b] text-white text-[9px] p-2 rounded shadow-lg z-10 whitespace-nowrap text-left"><p className="text-green-300">Ent: {fmt(h.receita)}</p><p className="text-red-300">Sai: {fmt(h.despesa)}</p></div></div>)})}</div></Card><Card className="p-6"><div className="flex justify-between items-center mb-6"><h3 className="text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><PieChart size={14}/> Gastos do Mês</h3><span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded font-bold">{fmt(gastoMes)}</span></div><div className="flex flex-col sm:flex-row items-center gap-6"><div className="relative w-40 h-40 rounded-full shrink-0" style={{ background: generateConicGradient(gastosPorCategoria, gastoMes) }}><div className="absolute inset-4 bg-white rounded-full flex items-center justify-center flex-col"><span className="text-[10px] font-bold text-slate-400 uppercase">Total</span><span className="text-sm font-black text-slate-800">{fmt(gastoMes)}</span></div></div><div className="flex-1 w-full space-y-2 max-h-40 overflow-y-auto pr-1">{gastosPorCategoria.length > 0 ? gastosPorCategoria.map((cat, i) => (<div key={i} className="flex items-center justify-between text-xs"><div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}></div><span className="font-bold text-slate-600 truncate max-w-[100px]">{cat.name}</span></div><span className="font-bold text-slate-400">{((cat.value / (gastoMes || 1)) * 100).toFixed(0)}%</span></div>)) : <p className="text-center text-slate-300 text-xs italic">Sem dados.</p>}</div></div></Card></div></div>)}
-         {abaAtiva === 'mais' && (<div className="space-y-6 animate-in fade-in duration-500"><div className="bg-[#1e293b] p-6 rounded-b-[40px] text-center shadow-lg -mt-4 pb-10 mb-2"><div className="flex justify-center mb-2"><Logo variant="full" width="w-48" className="brightness-0 invert opacity-90" /></div><p className="text-slate-400 text-xs font-medium mt-0">Ferramentas e Utilitários</p></div><div className="grid grid-cols-2 gap-4 px-2"><button onClick={() => setModalZeladoria(true)} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 hover:shadow-md transition"><div className="bg-slate-50 text-slate-600 p-4 rounded-2xl"><Hammer size={28}/></div><span className="font-black text-slate-700 text-xs uppercase tracking-widest flex items-center gap-1">Zeladoria</span></button><button onClick={() => setModalAvisos(true)} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 hover:shadow-md transition"><div className="bg-orange-50 text-orange-500 p-4 rounded-2xl"><Megaphone size={28}/></div><span className="font-black text-slate-700 text-xs uppercase tracking-widest flex items-center gap-1">Mural de Avisos</span></button><button onClick={() => setModalEnquete(true)} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 hover:shadow-md transition"><div className="bg-blue-50 text-blue-500 p-4 rounded-2xl"><Vote size={28}/></div><span className="font-black text-slate-700 text-xs uppercase tracking-widest flex items-center gap-1">Enquetes</span></button><button onClick={() => setModalConfig(true)} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 hover:shadow-md transition"><div className="bg-slate-50 text-slate-600 p-4 rounded-2xl"><Settings size={28}/></div><span className="font-black text-slate-700 text-xs uppercase tracking-widest">Configuração</span></button></div></div>)}
+
+       <main className={`max-w-4xl mx-auto p-4 relative z-10 -mt-8`}>
+         
+         {/* ABA RECEITAS - MÊS ATUAL */}
+         {abaAtiva === 'receitas' && (<div className="space-y-4 animate-in fade-in duration-500">
+             
+             <Card className="p-6 bg-white border-l-[6px] border-l-[#84cc16] shadow-xl flex flex-col sm:flex-row justify-between items-center text-left gap-4">
+                 <div className="w-full sm:w-1/2">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2"><ArrowUpCircle size={14} className="text-[#84cc16]"/> Arrecadação de {mesAtual}</p>
+                     <div className="flex items-end gap-2 mb-3">
+                         <p className="text-3xl font-black text-[#84cc16]">{fmtPriv(receitaMes)}</p>
+                         <p className="text-xs font-bold text-slate-400 mb-1">/ {fmtPriv(potencialMes)}</p>
+                     </div>
+                     <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden relative">
+                         <div className="bg-[#84cc16] h-full absolute top-0 left-0 transition-all duration-500" style={{ width: `${Math.min(porcentagemArrecadada, 100)}%` }}></div>
+                     </div>
+                 </div>
+                 <div className="relative w-full sm:w-auto flex-1 max-w-xs mt-2 sm:mt-0">
+                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                     <input type="text" placeholder="Buscar Apto" value={busca} onChange={e=>setBusca(e.target.value)} className="pl-9 pr-4 py-4 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:border-[#84cc16] w-full bg-slate-50"/>
+                 </div>
+             </Card>
+
+             <div className="grid gap-3">
+                 {unidadesFiltradas.length > 0 ? unidadesFiltradas.map(u => { 
+                     const valorDevido = safeNum(config.valorCondominio); 
+                     const pags = getPagamentosMes(u, chaveAtual); 
+                     const totalPago = calcularTotalPago(pags); 
+                     const isPago = totalPago >= valorDevido; 
+                     const isParcial = totalPago > 0 && totalPago < valorDevido; 
+                     return (
+                         <Card key={u.id} className={`p-4 border-l-[6px] transition-all hover:shadow-md ${isPago ? 'border-l-[#84cc16]' : (isParcial ? 'border-l-yellow-400' : 'border-l-slate-200')}`}>
+                             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                                 <div className="flex gap-4 items-center text-left w-full sm:w-auto">
+                                     <div className="w-14 h-14 bg-slate-50 rounded-2xl font-black flex items-center justify-center text-slate-400 text-lg border border-slate-100 relative shrink-0">
+                                         {safeStr(u.numero)}
+                                         {u.linked_user_id && <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>}
+                                     </div>
+                                     <div className="flex-1">
+                                         <p className="font-black text-slate-800 flex items-center gap-2">{safeStr(u.mora_proprietario ? (u.proprietario?.nome || "Proprietário") : (u.inquilino?.nome || "Morador"))} <button onClick={() => setModalEditar(u)} className="text-slate-300 hover:text-blue-500"><Pencil size={12}/></button></p>
+                                         <div className="mt-1">
+                                             {totalPago > 0 ? <span className={`text-[10px] font-black uppercase tracking-tighter flex items-center gap-1 ${isPago ? 'text-[#84cc16]' : 'text-yellow-600'}`}><CheckCircle size={10}/> {isPago ? 'PAGO NESTE MÊS' : 'PARCIAL'} • {fmt(totalPago)}</span> : <span className="text-[10px] font-black text-slate-400 tracking-wide uppercase">AGUARDANDO {mesAtual}</span>}
+                                         </div>
+                                     </div>
+                                 </div>
+                                 <div className="flex flex-col sm:items-end w-full sm:w-auto gap-2 mt-2 sm:mt-0">
+                                     {totalPago > 0 ? <button onClick={() => setModalDetalhesUnidade({ u, mes: mesAtual, ano: anoAtual, pags, totalPago, valorDevido })} className="w-full sm:w-auto text-[10px] bg-slate-100 text-slate-600 font-black px-4 py-3 rounded-xl hover:bg-slate-200 flex items-center justify-center gap-2 transition"><Eye size={12}/> EXTRATO DA UNIDADE</button> : <button onClick={() => setModalPagamento({ unidadeId: u.id, valorSugerido: valorDevido })} className="w-full sm:w-auto bg-[#1e293b] text-white text-[10px] font-black px-6 py-3 rounded-2xl shadow-lg active:scale-95 transition hover:bg-black">RECEBER</button>}
+                                 </div>
+                             </div>
+                         </Card>
+                     ); 
+                 }) : <EmptyState icon={Home} title="Nenhum Apartamento" desc="Você ainda não cadastrou nenhuma unidade ou a busca não encontrou resultados." />}
+             </div>
+         </div>)}
+
+         {/* ABA COBRANÇAS / INADIMPLÊNCIA ACUMULADA */}
+         {abaAtiva === 'cobrancas' && (
+             <div className="space-y-4 animate-in fade-in duration-500">
+                 
+                 <Card className="p-6 bg-white border-l-[6px] border-l-red-500 shadow-xl flex justify-between items-center text-left gap-4">
+                     <div>
+                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2"><BadgeAlert size={14} className="text-red-500"/> Inadimplência Total</p>
+                         <p className="text-3xl font-black text-red-600">{fmtPriv(inadimplenciaGlobal.reduce((acc, d) => acc + d.valorTotalDevido, 0))}</p>
+                     </div>
+                     <div className="bg-red-50 text-red-600 px-4 py-2 rounded-xl text-center border border-red-100 shadow-sm shrink-0">
+                         <p className="text-xl font-black">{inadimplenciaGlobal.length}</p>
+                         <p className="text-[8px] uppercase font-bold tracking-widest">Aptos</p>
+                     </div>
+                 </Card>
+
+                 {inadimplenciaGlobal.length > 0 ? (
+                     <div className="grid gap-3 mt-4">
+                         {inadimplenciaGlobal.sort((a,b) => b.mesesAtraso - a.mesesAtraso).map(dev => (
+                             <Card key={dev.unidade.id} className="p-4 sm:p-5 flex flex-col sm:flex-row justify-between items-center gap-4 hover:shadow-md transition border-l-[6px] border-l-red-500">
+                                 <div className="flex items-center gap-4 text-left w-full sm:w-auto">
+                                    <div className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl font-black flex items-center justify-center text-lg border border-red-100 shrink-0">{dev.unidade.numero}</div>
+                                    <div className="flex-1">
+                                        <p className="font-black text-slate-800 text-sm">{safeStr(dev.unidade.mora_proprietario ? dev.unidade.proprietario?.nome : dev.unidade.inquilino?.nome) || 'Morador'}</p>
+                                        <p className="text-[10px] font-black text-red-500 uppercase mt-1 bg-red-50 px-2 py-0.5 rounded-md inline-block">{dev.mesesAtraso} {dev.mesesAtraso > 1 ? 'cotas pendentes' : 'cota pendente'}</p>
+                                    </div>
+                                 </div>
+                                 <div className="flex items-center justify-between w-full sm:w-auto gap-4 mt-2 sm:mt-0 border-t sm:border-t-0 pt-4 sm:pt-0 border-slate-100">
+                                     <div className="text-left sm:text-right">
+                                         <p className="text-[9px] font-bold text-slate-400 uppercase">Dívida Total</p>
+                                         <p className="font-black text-lg text-slate-800">{fmtPriv(dev.valorTotalDevido)}</p>
+                                     </div>
+                                     <button onClick={() => enviarWhatsAppCobranca(dev)} className="bg-[#1e293b] text-white px-5 py-3 rounded-xl text-[10px] font-black flex items-center gap-2 hover:bg-black transition whitespace-nowrap active:scale-95 shadow-lg"><MessageCircle size={14}/> COBRAR</button>
+                                 </div>
+                             </Card>
+                         ))}
+                     </div>
+                 ) : (
+                     <div className="mt-4"><EmptyState icon={ThumbsUp} title="Zero Inadimplência" desc={`Parabéns! Nenhum apartamento está com débitos anteriores acumulados.`} /></div>
+                 )}
+             </div>
+         )}
+
+         {/* ABA DESPESAS */}
+         {abaAtiva === 'despesas' && (<div className="space-y-4 animate-in fade-in duration-500">
+             
+             <Card className="p-6 bg-white border-l-[6px] border-l-orange-500 shadow-xl flex flex-col sm:flex-row justify-between items-center text-left gap-4">
+                 <div className="w-full sm:w-1/2">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2"><ArrowDownCircle size={14} className="text-orange-500"/> Gastos de {mesAtual}</p>
+                     <div className="flex items-end gap-2 mb-3">
+                         <p className="text-3xl font-black text-orange-600">{fmtPriv(gastoMes)}</p>
+                     </div>
+                     <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden relative flex">
+                         <div className="bg-orange-500 h-full absolute top-0 left-0 transition-all duration-500" style={{ width: `${Math.min(porcentagemGastoPago, 100)}%` }}></div>
+                     </div>
+                     <p className="text-[9px] font-bold text-slate-400 mt-2 flex justify-between uppercase"><span>Pago: {fmtPriv(gastoPagoMes)}</span><span>Pendente: {fmtPriv(gastoMes - gastoPagoMes)}</span></p>
+                 </div>
+                 <button onClick={() => setModalNovaDespesa(true)} className="w-full sm:w-auto bg-orange-500 text-white px-5 py-4 rounded-2xl font-black text-xs shadow-lg flex items-center justify-center gap-2 hover:bg-orange-600 transition active:scale-95 shrink-0"><PlusCircle size={18}/> LANÇAR CONTA</button>
+             </Card>
+
+             {despesasFiltradas.length === 0 && (<div className="mt-4"><EmptyState icon={FileCheck} title="Nenhuma Conta" desc={`Ainda não foram lançadas despesas em ${mesAtual}.`} action={() => setModalNovaDespesa(true)} label="Lançar Primeira"/></div>)}
+             <div className="grid gap-2">
+                 {despesasFiltradas.map(d => { 
+                     const isPago = d.pago !== false; 
+                     return (
+                         <Card key={d.id} className={`p-4 flex flex-col sm:flex-row justify-between items-center text-left border-l-4 ${isPago ? 'border-l-slate-400' : 'border-l-orange-400 bg-orange-50/10'}`}>
+                             <div className="w-full sm:w-auto"><p className={`font-black flex items-center gap-2 text-slate-800`}>{safeStr(d.descricao)}{d.url_comprovante && <a href={d.url_comprovante} target="_blank" rel="noopener noreferrer" className="bg-slate-100 text-slate-500 p-1 rounded-md hover:bg-blue-100 hover:text-blue-600 transition"><Paperclip size={12}/></a>}</p><div className="flex gap-2 mt-1"><div className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">{getIconeCategoria(d.categoria)}<span className="text-[9px] uppercase font-black text-slate-500">{safeStr(d.categoria)}</span></div><span className="text-[10px] font-bold text-slate-400 self-center">{safeStr(d.data)}</span></div></div>
+                             <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end mt-4 sm:mt-0"><div className="text-right mr-2"><p className={`font-black ${isPago ? 'text-slate-800' : 'text-orange-500'}`}>-{fmt(d.valor)}</p><span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${isPago ? 'bg-slate-100 text-slate-600' : 'bg-orange-100 text-orange-600'}`}>{isPago ? 'PAGO' : 'PENDENTE'}</span></div><div className="flex gap-1 items-center"><button onClick={() => editarDespesa({...d, pago: !isPago})} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase transition flex items-center gap-1 shadow-sm ${isPago ? 'bg-slate-100 text-slate-400 hover:bg-slate-200' : 'bg-slate-600 text-white hover:bg-slate-800'}`}>{isPago ? <RotateCcw size={12}/> : <Check size={12}/>} {isPago ? 'DESFAZER' : 'PAGAR'}</button><button onClick={() => setModalEditarDespesa(d)} className="p-2 text-slate-300 hover:text-blue-500"><Edit size={16}/></button><button onClick={() => setConfirmacao({ titulo: "Apagar Conta?", texto: "Tem certeza que deseja apagar este lançamento?", onConfirm: () => { apagarDespesa(d.id); setConfirmacao(null); } })} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16}/></button></div></div>
+                         </Card>
+                     ); 
+                 })}
+             </div>
+         </div>)}
+
+         {/* ABA CAIXA (DASHBOARD) */}
+         {abaAtiva === 'caixa' && (<div className="space-y-6 animate-in fade-in duration-500 text-left">
+             <div className="bg-[#1e293b] text-white p-8 rounded-[32px] shadow-2xl relative overflow-hidden">
+                 <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none transform translate-x-1/4 -translate-y-1/4"><PieChartIcon size={200}/></div>
+                 <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-end gap-6">
+                     <div>
+                         <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2 flex items-center gap-2"><Target size={14} className="text-[#84cc16]"/> Saldo em Caixa Hoje</p>
+                         <h2 className="text-4xl sm:text-5xl font-black mb-4 tracking-tighter">{fmtPriv(saldoTotalReal)}</h2>
+                         <div className="pt-4 border-t border-white/10 flex flex-col gap-1">
+                             <div className="flex items-center gap-2">
+                                 <History size={12} className="text-slate-400"/> 
+                                 <span className="text-[10px] text-slate-400 uppercase font-bold">Acumulado até final de {safeStr(mesAtual)}/{safeStr(anoAtual)}: <span className="text-white">{fmtPriv(saldoAteMesSelecionado)}</span></span>
+                             </div>
+                         </div>
+                     </div>
+                     <button onClick={() => setModalRelatorio(true)} className="bg-[#84cc16] text-[#1e293b] py-3 px-6 rounded-2xl font-black text-xs shadow-xl flex items-center justify-center gap-2 hover:bg-[#a3e635] transition w-full md:w-auto active:scale-95"><FileBarChart size={18}/> PRESTAÇÃO DE CONTAS</button>
+                 </div>
+             </div>
+
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                 {/* Evolução de Saldo */}
+                 <Card className="p-6 col-span-1">
+                     <div className="flex justify-between items-center mb-10"><h3 className="text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><LineChart size={14}/> Evolução de Saldo</h3></div>
+                     <div className="flex items-end justify-between gap-2 h-32 mt-4 px-2">
+                         {historicoEvolutivo.map((h, i) => {
+                             const percentual = maxSaldoEvolucao > 0 ? (h.saldoFinal / maxSaldoEvolucao) * 100 : 0;
+                             const alturaBarra = h.saldoFinal > 0 ? Math.max(percentual, 3) : 0;
+                             return ( <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end"><div className="w-full flex-1 flex items-end justify-center relative"><div className="w-full max-w-[40px] bg-[#a3e635] rounded-t-md relative flex items-end justify-center transition-all duration-300 shadow-sm" style={{ height: `${alturaBarra}%` }}>{h.saldoFinal > 0 && ( <span className="absolute -top-5 text-[9px] font-black text-slate-600 whitespace-nowrap animate-in fade-in"> {formatarInteiro(h.saldoFinal)} </span> )}</div></div><span className="text-[9px] font-bold text-slate-400">{h.mesLabel}</span></div> )
+                         })}
+                     </div>
+                 </Card>
+
+                 {/* Gastos do Mês */}
+                 <Card className="p-6 col-span-1">
+                     <div className="flex justify-between items-center mb-6"><h3 className="text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><PieChart size={14}/> Gastos de {mesAtual}</h3><span className="text-[10px] bg-red-50 text-red-600 px-2 py-1 rounded-full font-black">-{fmtPriv(gastoMes)}</span></div>
+                     <div className="flex flex-col sm:flex-row items-center gap-6">
+                         <div className="relative w-32 h-32 rounded-full shrink-0 shadow-inner" style={{ background: generateConicGradient(gastosPorCategoria, gastoMes) }}>
+                             <div className="absolute inset-4 bg-white rounded-full flex items-center justify-center flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Total</span><span className="text-xs font-black text-slate-800">{fmtPriv(gastoMes)}</span></div>
+                         </div>
+                         <div className="flex-1 w-full space-y-2 max-h-32 overflow-y-auto pr-2">
+                             {gastosPorCategoria.length > 0 ? gastosPorCategoria.map((cat, i) => ( <div key={i} className="flex items-center justify-between text-xs p-1 hover:bg-slate-50 rounded"><div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}></div><span className="font-bold text-slate-600 truncate max-w-[100px]" title={cat.name}>{cat.name}</span></div><span className="font-black text-slate-400 text-[10px]">{((cat.value / (gastoMes || 1)) * 100).toFixed(0)}%</span></div> )) : <p className="text-center text-slate-300 text-xs italic w-full">Nenhuma despesa lançada.</p>}
+                         </div>
+                     </div>
+                 </Card>
+             </div>
+         </div>)}
+
+         {/* ABA FERRAMENTAS */}
+         {abaAtiva === 'mais' && (<div className="space-y-6 animate-in fade-in duration-500">
+             <div className="bg-[#1e293b] p-6 rounded-b-[40px] text-center shadow-lg -mt-4 pb-10 mb-2">
+                 <div className="flex justify-center mb-2"><Logo variant="full" width="w-48" className="brightness-0 invert opacity-90" /></div>
+                 <p className="text-slate-400 text-xs font-medium mt-0">Recursos do Condomínio</p>
+             </div>
+             
+             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 px-2">
+                 <button onClick={() => setModalManutencao(true)} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 hover:shadow-md transition active:scale-95 group relative">
+                     <div className="bg-slate-50 text-slate-600 p-4 rounded-2xl relative group-hover:bg-[#84cc16]/10 group-hover:text-[#84cc16] transition"><Wrench size={24}/>{patrimonio.filter(p=>!p.concluido).length > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-white"></span>}</div>
+                     <span className="font-black text-slate-700 text-[10px] uppercase tracking-widest flex items-center gap-1">Manutenção</span>
+                 </button>
+                 
+                 <button onClick={() => setModalAvisos(true)} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 hover:shadow-md transition active:scale-95 group">
+                     <div className="bg-orange-50 text-orange-500 p-4 rounded-2xl group-hover:bg-orange-100 transition"><Megaphone size={24}/></div><span className="font-black text-slate-700 text-[10px] uppercase tracking-widest flex items-center gap-1">Mural</span>
+                 </button>
+                 
+                 <button onClick={() => setModalEnquete(true)} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 hover:shadow-md transition active:scale-95 group">
+                     <div className="bg-blue-50 text-blue-500 p-4 rounded-2xl group-hover:bg-blue-100 transition"><Vote size={24}/></div><span className="font-black text-slate-700 text-[10px] uppercase tracking-widest flex items-center gap-1">Enquetes</span>
+                 </button>
+
+                 <button onClick={() => setModalTelefones(true)} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 hover:shadow-md transition active:scale-95 group relative">
+                     <div className="absolute top-2 right-2 bg-slate-100 text-slate-400 p-1 rounded-full"><Printer size={10}/></div><div className="bg-teal-50 text-teal-600 p-4 rounded-2xl group-hover:bg-teal-100 transition"><Contact size={24}/></div><span className="font-black text-slate-700 text-[10px] uppercase tracking-widest text-center">Contatos & Info</span>
+                 </button>
+                 
+                 <button onClick={() => setModalFila(true)} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 hover:shadow-md transition active:scale-95 group relative">
+                     {filaPendente > 0 && <span className="absolute top-2 right-2 w-4 h-4 bg-red-500 text-white font-black text-[9px] rounded-full flex items-center justify-center">{filaPendente}</span>}<div className="bg-purple-50 text-purple-600 p-4 rounded-2xl group-hover:bg-purple-100 transition"><UserPlus size={24}/></div><span className="font-black text-slate-700 text-[10px] uppercase tracking-widest text-center">Moradores</span>
+                 </button>
+
+                 <button onClick={() => setModalConfig(true)} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 hover:shadow-md transition active:scale-95 group">
+                     <div className="bg-slate-50 text-slate-600 p-4 rounded-2xl group-hover:bg-slate-200 transition"><Settings size={24}/></div><span className="font-black text-slate-700 text-[10px] uppercase tracking-widest">Ajustes</span>
+                 </button>
+             </div>
+         </div>)}
        </main>
-       <nav className="fixed bottom-0 left-0 right-0 bg-white/80 border-t border-slate-100 px-2 py-4 flex justify-around items-end z-40 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] no-print pb-10 backdrop-blur-xl">
-          <NavBtn active={abaAtiva === 'receitas'} onClick={() => setAbaAtiva('receitas')} icon={<ArrowUpCircle size={24}/>} label="Receitas" />
-          <NavBtn active={abaAtiva === 'despesas'} onClick={() => setAbaAtiva('despesas')} icon={<ArrowDownCircle size={24}/>} label="Despesas" />
-          <NavBtn active={abaAtiva === 'caixa'} onClick={() => setAbaAtiva('caixa')} icon={<PieChart size={24}/>} label="Dashboard" />
-          <NavBtn active={abaAtiva === 'mais'} onClick={() => setAbaAtiva('mais')} icon={<Grid size={24}/>} label="Ferramentas" />
+
+       {/* NAV BAR INFERIOR PADRÃO */}
+       <nav className="fixed bottom-0 left-0 right-0 bg-white/90 border-t border-slate-100 px-2 py-4 flex justify-around items-end z-40 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pb-10 backdrop-blur-xl">
+          <NavBtn active={abaAtiva === 'receitas'} onClick={() => setAbaAtiva('receitas')} icon={<ArrowUpCircle size={22}/>} label="Receitas" />
+          <NavBtn active={abaAtiva === 'despesas'} onClick={() => setAbaAtiva('despesas')} icon={<ArrowDownCircle size={22}/>} label="Despesas" />
+          <NavBtn active={abaAtiva === 'cobrancas'} onClick={() => setAbaAtiva('cobrancas')} icon={<AlertTriangle size={22}/>} label="Cobranças" badgeCount={inadimplenciaGlobal.length} />
+          <NavBtn active={abaAtiva === 'caixa'} onClick={() => setAbaAtiva('caixa')} icon={<PieChartIcon size={22}/>} label="Dashboard" />
+          <NavBtn active={abaAtiva === 'mais'} onClick={() => setAbaAtiva('mais')} icon={<Grid size={22}/>} label="Mais" />
        </nav>
+
+      {/* TODOS OS MODAIS IMPLEMENTADOS (SEM PONTAS SOLTAS) */}
       {confirmacao && <ModalConfirmacao data={confirmacao} onClose={() => setConfirmacao(null)} />}
-      {modalPagamento && <ModalReceber valorSugerido={modalPagamento.valorSugerido} onCancel={() => setModalPagamento(null)} onConfirm={(v,d,url) => { adicionarPagamento(modalPagamento.unidadeId, v, d, url); setModalPagamento(null); }} supabase={supabase} />}
-      {modalDetalhesUnidade && <ModalDetalhesUnidade dados={modalDetalhesUnidade} sindica={config.sindicaNome} chavePix={config.chavePix} onAdd={(v,d,url) => { adicionarPagamento(modalDetalhesUnidade.u.id, v, d, url); setModalDetalhesUnidade(null); }} onDelete={(pid) => { removerPagamento(pid); setModalDetalhesUnidade(null); }} onClose={() => setModalDetalhesUnidade(null)} copiarTexto={copiarTexto} fmt={fmt} supabase={supabase} />}
-      {modalNovaDespesa && <ModalDespesa supabase={supabase} planoAtual={config.tipoPlano} categorias={config.categorias} abrirConfig={() => {setModalNovaDespesa(false); setModalConfig(true);}} onClose={() => setModalNovaDespesa(false)} onSave={salvarNovaDespesa} triggerConfirm={setConfirmacao} />}
-      {modalEditarDespesa && <ModalDespesa supabase={supabase} planoAtual={config.tipoPlano} categorias={config.categorias} abrirConfig={() => {setModalEditarDespesa(null); setModalConfig(true);}} despesaParaEditar={modalEditarDespesa} onClose={() => setModalEditarDespesa(null)} onSave={(d) => { editarDespesa({...d, id: modalEditarDespesa.id}); setModalEditarDespesa(null); }} triggerConfirm={setConfirmacao} />}
-      {modalEditar && <ModalEditarUnidade u={modalEditar} onClose={() => setModalEditar(null)} onSave={(novo) => { supabase.from('unidades').update(novo).eq('id',novo.id).then(()=>{ setUnidades(unidades.map(x=>x.id===novo.id?novo:x)); setModalEditar(null); showToast("Unidade salva!"); }); }} ativarModoMorador={() => { setUnidadeMorador(modalEditar); setModoMorador(true); setModalEditar(null); }} showToast={showToast} config={config} copiarTexto={copiarTexto} setConfirmacao={setConfirmacao} />}
-      {modalConfig && <ModalConfiguracoes config={config} setConfig={setConfig} despesas={despesas} onClose={() => setModalConfig(false)} triggerConfirm={setConfirmacao} exportarBackup={exportarBackup} importarBackup={importarBackup} resetar={resetarSistema} showToast={showToast} />}
-      {modalInstalar && <ModalInstalar onClose={() => setModalInstalar(false)} />}
-      {modalRelatorio && <ModalRelatorio receita={receitaMes} despesa={gastoMes} saldo={saldoAteMomento} despesas={despesasFiltradas} unidades={unidades} pagamentos={pagamentos} mes={mesAtual} ano={anoAtual} config={config} onClose={() => setModalRelatorio(false)} fmt={fmt} />}
-      {modalZeladoria && <ModalZeladoria lista={patrimonio} onClose={() => setModalZeladoria(false)} onSave={async (item) => { const {data, error} = await supabase.from('zeladoria').insert({...item, user_id:session.user.id}).select().single(); if(!error) setPatrimonio([...patrimonio, data]); }} onDelete={async (id) => { await supabase.from('zeladoria').delete().eq('id',id); setPatrimonio(patrimonio.filter(p=>p.id!==id)); }} />}
-      {modalAvisos && <ModalAvisos lista={avisos} onClose={() => setModalAvisos(false)} onSave={async (item) => { const {data, error} = await supabase.from('avisos').insert({...item, user_id:session.user.id}).select().single(); if(!error) setAvisos([data, ...avisos]); }} onDelete={async (id) => { await supabase.from('avisos').delete().eq('id',id); setAvisos(avisos.filter(a=>a.id!==id)); }} />}
-      {modalEnquete && <ModalEnquete lista={enquetes} onClose={() => setModalEnquete(false)} onSave={async (item) => { const {data, error} = await supabase.from('enquetes').insert({...item, user_id:session.user.id}).select().single(); if(!error) setEnquetes([data, ...enquetes]); }} />}
+      
+      {modalPagamento && <ModalReceber valorSugerido={modalPagamento.valorSugerido} onClose={() => setModalPagamento(null)} onConfirm={(v,d,url) => { adicionarPagamento(modalPagamento.unidadeId, v, d, url); setModalPagamento(null); }} supabase={supabase} />}
+      
+      {modalDetalhesUnidade && <ModalDetalhesUnidade dados={modalDetalhesUnidade} onAdd={(v,d,url) => { adicionarPagamento(modalDetalhesUnidade.u.id, v, d, url); setModalDetalhesUnidade({...modalDetalhesUnidade, pags: [...modalDetalhesUnidade.pags, {id: generateId(), valor: v, data: d, url_comprovante: url}]}); }} onDelete={(pid) => setConfirmacao({ titulo: "Apagar Pagamento?", texto: "Tem certeza que deseja remover este recebimento?", onConfirm: () => { removerPagamento(pid); setModalDetalhesUnidade({...modalDetalhesUnidade, pags: modalDetalhesUnidade.pags.filter(p=>p.id!==pid)}); setConfirmacao(null); } })} onClose={() => setModalDetalhesUnidade(null)} fmt={fmt} enviarRecibo={enviarReciboWhatsApp} supabase={supabase} setModalReciboVisual={setModalReciboVisual} onUpdatePagamento={atualizarComprovantePagamento} />}
+      
+      {modalReciboVisual && <ModalReciboVisual pagamento={modalReciboVisual.pagamento} unidade={modalReciboVisual.unidade} config={config} onClose={() => setModalReciboVisual(null)} fmt={fmt} enviarWhatsApp={enviarReciboWhatsApp} />}
+
+      {modalNovaDespesa && <ModalDespesa supabase={supabase} categorias={config.categorias} onClose={() => setModalNovaDespesa(false)} onSave={salvarNovaDespesa} />}
+      
+      {modalEditarDespesa && <ModalDespesa supabase={supabase} categorias={config.categorias} despesaParaEditar={modalEditarDespesa} onClose={() => setModalEditarDespesa(null)} onSave={(d) => { editarDespesa({...d, id: modalEditarDespesa.id}); setModalEditarDespesa(null); }} />}
+      
+      {modalEditar && <ModalEditarUnidade u={modalEditar} onClose={() => setModalEditar(null)} onSave={(novo) => { supabase.from('unidades').update(novo).eq('id',novo.id).then(()=>{ setUnidades(unidades.map(x=>x.id===novo.id?novo:x)); setModalEditar(null); showToast("Dados salvos!"); }); }} ativarModoMorador={() => { setUnidadeMorador(modalEditar); setModoMorador(true); setModalEditar(null); }} config={config} cId={cId} />}
+      
+      {modalConfig && <ModalConfiguracoes config={config} setConfig={salvarConfig} onClose={() => setModalConfig(false)} triggerConfirm={setConfirmacao} resetar={resetarSistema} showToast={showToast} exportarBackup={exportarBackup} supabase={supabase} />}
+      
+      {modalRelatorio && <ModalRelatorio receita={receitaMes} despesa={gastoMes} saldo={saldoAteMesSelecionado} despesas={despesasFiltradas} mes={mesAtual} ano={anoAtual} onClose={() => setModalRelatorio(false)} fmt={fmt} exportarCSV={exportarCSV} />}
+      
+      {modalManutencao && <ModalManutencao lista={patrimonio} onClose={() => setModalManutencao(false)} onToggle={toggleStatusManutencao} onDelete={(id) => setConfirmacao({ titulo: "Apagar Chamado?", texto: "Isso removerá o histórico.", onConfirm: () => { apagarManutencao(id); setConfirmacao(null); } })} />}
+      
+      {modalAvisos && <ModalAvisos lista={avisos} onClose={() => setModalAvisos(false)} onSave={salvarAviso} onDelete={(id) => setConfirmacao({ titulo: "Apagar Aviso?", texto: "Ele sumirá do app dos moradores.", onConfirm: () => { apagarAviso(id); setConfirmacao(null); } })} supabase={supabase} />}
+      
+      {modalEnquete && <ModalEnquete lista={enquetes} onClose={() => setModalEnquete(false)} onSave={salvarEnquete} onDelete={(id) => setConfirmacao({ titulo: "Encerrar Enquete?", texto: "Os votos serão perdidos se excluir.", onConfirm: () => { apagarEnquete(id); setConfirmacao(null); } })} unidadesTotal={unidades.length} />}
+      
+      {modalTelefones && <ModalTelefonesUteis config={config} setConfig={salvarConfig} onClose={() => setModalTelefones(false)} setPrintMode={setPrintMode} />}
+      
+      {modalFila && <ModalFilaAprovacao fila={config.filaAprovacao} onClose={() => setModalFila(false)} processarAprovacao={processarAprovacao} />}
+      
+      {modalInstalar && <ModalInstalarApp onClose={() => setModalInstalar(false)} />}
     </div>
   );
 }
 
-// --- MODO MORADOR COM ABAS (CORRIGIDO) ---
-function ModoMorador({ unidade, config, onExit, mesAtual, anoAtual, getPagamentosMes, calcularTotalPago, fmt, unidades, avisos, enquetes, patrimonio, showToast, copiarTexto, supabase }) {
+// --- MODO MORADOR ---
+function ModoMorador({ unidade, config, onExit, mesAtual, anoAtual, getPagamentosMes, calcularTotalPago, fmt, avisos, enquetes, patrimonio, showToast, copiarTexto, abrirChamado, registrarVoto, modalInstalar, setModalInstalar, setPrintMode, pagamentosCompletos, setModalReciboVisual, supabase, unidadesTotal }) {
   const [activeTab, setActiveTab] = useState('mural');
-  const [historyMode, setHistoryMode] = useState(false); // Toggle History
+  const [historyMode, setHistoryMode] = useState(false);
+  const [novoChamado, setNovoChamado] = useState('');
+  const [fotoChamado, setFotoChamado] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [verContatos, setVerContatos] = useState(false);
+  const [verRecibos, setVerRecibos] = useState(false); 
+  const [reciboExpandido, setReciboExpandido] = useState(null);
+  const [modalConfig, setModalConfig] = useState(false);
   
   const pags = getPagamentosMes(unidade, `${mesAtual}-${anoAtual}`);
   const totalPago = calcularTotalPago(pags);
   const valorDevido = safeNum(config.valorCondominio);
   const isPago = totalPago >= valorDevido;
   const valorRestante = Math.max(0, valorDevido - totalPago);
+
+  const meusPagamentos = pagamentosCompletos.filter(p => p.unidade_id === unidade.id).sort((a,b) => {
+      const p1 = getMonthKey(a.mes, a.ano); const p2 = getMonthKey(b.mes, b.ano); return p2 - p1;
+  });
 
   const filterActive = (list, type) => {
      if(!list) return [];
@@ -585,19 +992,54 @@ function ModoMorador({ unidade, config, onExit, mesAtual, anoAtual, getPagamento
      if(type === 'zeladoria') return list.filter(z => historyMode ? z.concluido : !z.concluido);
      return list;
   }
+  
   const avisosShow = filterActive(avisos, 'aviso');
   const enquetesShow = filterActive(enquetes, 'enquete');
   const zelaShow = filterActive(patrimonio, 'zeladoria');
+  const avisoUrgente = avisosShow.find(a => a.tipo === 'Urgente');
+
+  const handleUploadFoto = async (e) => { 
+      try { 
+          setUploading(true); 
+          const file = e.target.files[0]; 
+          if(!file) return; 
+          const name = `chamado_${Date.now()}.${file.name.split('.').pop()}`; 
+          await supabase.storage.from('comprovantes').upload(name, file); 
+          const {data} = supabase.storage.from('comprovantes').getPublicUrl(name); 
+          setFotoChamado(data.publicUrl); 
+      } catch(err){ console.error(err); showToast("Erro no upload", "error"); } finally { setUploading(false) } 
+  }; 
 
   const Badge = ({ count }) => count > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold shadow-sm">{count}</span>;
   const TabBtn = ({ id, icon: Icon, label, count }) => <button onClick={() => {setActiveTab(id); setHistoryMode(false);}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition flex flex-col items-center gap-1 relative ${activeTab === id ? 'bg-[#1e293b] text-white shadow-lg' : 'bg-white text-slate-400 border border-slate-100'}`}><Icon size={18} className={activeTab === id ? 'text-[#84cc16]' : 'text-slate-300'}/>{label}<Badge count={count}/></button>;
   
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-10">
-       <div className="bg-[#1e293b] text-white p-6 pb-12 rounded-b-[40px] shadow-2xl mb-8 relative"><button onClick={onExit} className="absolute top-4 right-4 bg-white/10 text-white p-2 rounded-full hover:bg-white/20 text-xs font-bold flex items-center gap-2"><LogOutIcon size={14}/> Sair</button><div className="mb-6 scale-90 origin-top-left"><Logo variant="simple" className="brightness-0 invert" width="w-40" /></div><h2 className="text-3xl font-black mb-1">Olá, {safeStr(unidade.proprietario?.nome).split(' ')[0] || 'Vizinho'}!</h2><p className="text-slate-400 text-sm font-medium">Apto {safeStr(unidade.numero)} • {safeStr(config.predioNome)}</p></div>
+       {avisoUrgente && !historyMode && (
+           <div className="bg-red-600 text-white p-4 sticky top-0 z-50 flex gap-3 items-start shadow-xl animate-in slide-in-from-top">
+               <AlertOctagon size={24} className="shrink-0 animate-pulse"/>
+               <div><p className="text-[10px] font-black uppercase tracking-widest opacity-80">Aviso Urgente</p><p className="font-bold text-sm leading-tight mt-1">{avisoUrgente.titulo}</p></div>
+           </div>
+       )}
+
+       <div className={`bg-[#1e293b] text-white p-6 pb-12 rounded-b-[40px] shadow-2xl mb-8 relative ${avisoUrgente ? 'rounded-t-none' : ''}`}>
+           <div className="absolute top-4 right-4 flex gap-2">
+                <button onClick={() => setModalConfig(true)} className="bg-white/10 text-white p-2 rounded-xl hover:bg-white/20 transition"><Settings size={16}/></button>
+                <button onClick={() => setModalInstalar(true)} className="bg-[#84cc16]/10 text-[#84cc16] p-2 rounded-xl hover:bg-[#84cc16]/20 transition animate-pulse"><MonitorPlay size={16}/></button>
+                <button onClick={onExit} className="bg-white/10 text-white p-2 rounded-xl hover:bg-white/20 text-xs font-bold flex items-center gap-2 transition"><Building size={14}/> Sair</button>
+           </div>
+           <div className="mb-6 scale-90 origin-top-left"><Logo variant="simple" className="brightness-0 invert" width="w-40" /></div>
+           <h2 className="text-3xl font-black mb-1">Olá, {safeStr(unidade.proprietario?.nome).split(' ')[0] || 'Vizinho'}!</h2>
+           <p className="text-slate-400 text-sm font-medium">Apto {safeStr(unidade.numero)} • {safeStr(config.predioNome)}</p>
+       </div>
+       
        <div className="px-6 -mt-16 relative z-10 space-y-4">
           <Card className="p-6 text-center border-t-4 border-t-[#84cc16]">
-              <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Fatura de {mesAtual}</p>
+              <div className="flex justify-between items-center mb-2">
+                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Fatura de {mesAtual}</p>
+                  <button onClick={() => setVerRecibos(true)} className="text-[10px] font-black text-blue-500 bg-blue-50 px-3 py-2 rounded-xl hover:bg-blue-100 flex items-center gap-1 transition"><History size={12}/> MEUS RECIBOS</button>
+              </div>
+
               {isPago ? (<div className="py-2 animate-in zoom-in duration-300"><CheckCircle size={40} className="text-[#84cc16] mx-auto mb-2"/><p className="text-xl font-black text-[#1e293b]">Tudo pago!</p></div>) : (
                   <div className="py-2">
                       <p className="text-4xl font-black text-[#1e293b] mb-1">{fmt(valorRestante)}</p>
@@ -606,436 +1048,668 @@ function ModoMorador({ unidade, config, onExit, mesAtual, anoAtual, getPagamento
                   </div>
               )}
           </Card>
-          <div className="grid grid-cols-2 gap-3 mt-4"><button onClick={() => window.open(`https://wa.me/55${safeStr(config.telefoneSindico || '').replace(/\D/g,'')}?text=Olá, sou morador do Apto ${unidade.numero}`, '_blank')} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 font-bold text-xs text-slate-600 flex flex-col items-center gap-2 hover:bg-slate-50 col-span-2"><Phone size={24} className="text-slate-400"/> Falar com Síndico</button></div>
+          
+          <div className="grid grid-cols-2 gap-3 mt-4">
+              <button onClick={() => window.open(`https://wa.me/55${safeStr(config.telefoneSindico || '').replace(/\D/g,'')}?text=Olá, sou morador do Apto ${unidade.numero}`, '_blank')} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 font-bold text-xs text-slate-600 flex flex-col items-center gap-2 hover:bg-slate-50 transition"><Phone size={24} className="text-slate-400"/> Síndico</button>
+              <button onClick={() => setVerContatos(true)} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 font-bold text-xs text-slate-600 flex flex-col items-center gap-2 hover:bg-slate-50 transition relative overflow-hidden"><div className="absolute top-0 right-0 p-1 opacity-10"><Wifi size={40}/></div><Contact size={24} className="text-teal-500 relative z-10"/> <span className="relative z-10">Contatos & Info</span></button>
+          </div>
+          
           <div className="mt-8">
-             <div className="flex gap-2 mb-4"><TabBtn id="mural" icon={Megaphone} label="Mural" count={filterActive(avisos, 'aviso').length}/><TabBtn id="vote" icon={Vote} label="Votação" count={filterActive(enquetes, 'enquete').length}/><TabBtn id="manut" icon={Hammer} label="Manutenção" count={filterActive(patrimonio, 'zeladoria').length}/></div>
+             <div className="flex gap-2 mb-4"><TabBtn id="mural" icon={Megaphone} label="Mural" count={filterActive(avisos, 'aviso').length}/><TabBtn id="vote" icon={Vote} label="Votação" count={filterActive(enquetes, 'enquete').length}/><TabBtn id="manut" icon={Wrench} label="Manutenção" count={filterActive(patrimonio, 'zeladoria').length}/></div>
+             <div className="flex justify-end mb-2"><button onClick={() => setHistoryMode(!historyMode)} className="text-[10px] font-bold text-slate-400 uppercase hover:text-slate-600 flex items-center gap-1">{historyMode ? <RotateCcw size={10}/> : <History size={10}/>} {historyMode ? 'Ver Ativos' : 'Ver Histórico'}</button></div>
              
-             <div className="bg-slate-200 p-1 rounded-xl flex mb-4">
-                <button onClick={() => setHistoryMode(false)} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition ${!historyMode ? 'bg-white shadow text-[#1e293b]' : 'text-slate-500'}`}>Em Aberto</button>
-                <button onClick={() => setHistoryMode(true)} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition ${historyMode ? 'bg-white shadow text-[#1e293b]' : 'text-slate-500'}`}>Histórico</button>
-             </div>
+             {activeTab === 'mural' && <div className="space-y-4">{avisosShow.map(a => {
+                 let corBase = 'blue'; let icone = <Info size={14}/>; if(a.tipo === 'Urgente') { corBase = 'red'; icone = <AlertCircle size={14}/>; } if(a.tipo === 'Regra') { corBase = 'purple'; icone = <ShieldCheck size={14}/>; }
+                 return (<div key={a.id} className={`p-4 rounded-2xl border bg-white border-slate-100 shadow-sm border-l-4 border-l-${corBase}-500`}><div className="flex justify-between items-center mb-2"><span className={`text-[9px] font-black uppercase text-${corBase}-600 bg-${corBase}-50 px-2 py-1 rounded flex items-center gap-1`}>{icone} {a.tipo || 'AVISO'}</span><span className="text-[9px] font-bold text-slate-400">{a.data}</span></div><h4 className="font-black text-sm text-slate-800 mb-1">{a.titulo}</h4><p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{a.mensagem}</p>{a.link && <a href={a.link} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block bg-slate-100 text-blue-600 text-[10px] font-black px-3 py-2 rounded flex items-center gap-1 w-max hover:bg-slate-200"><ExternalLink size={12}/> VER ANEXO</a>}</div>)
+             })} {avisosShow.length===0 && <EmptyState icon={Bell} title={historyMode ? "Histórico Vazio" : "Sem Avisos"} desc=""/>}</div>}
              
-             {activeTab === 'mural' && <div className="space-y-4">{avisosShow.map(a => (<div key={a.id} className="p-4 rounded-2xl border bg-white border-slate-100 shadow-sm"><div className="flex justify-between mb-1"><span className="text-[9px] font-black uppercase text-blue-500 bg-blue-50 px-2 rounded">AVISO</span><span className="text-[9px] text-slate-400">{a.data}</span></div><h4 className="font-black text-sm text-slate-800 mb-1">{a.titulo}</h4><p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{a.mensagem}</p></div>))} {avisosShow.length===0 && <EmptyState icon={Bell} title={historyMode ? "Histórico Vazio" : "Sem Avisos Recentes"} desc=""/>}</div>}
-             
-             {activeTab === 'vote' && <div className="space-y-4">{enquetesShow.map(e => (<div key={e.id} className="p-4 rounded-2xl border bg-white border-slate-100 shadow-sm"><h4 className="font-black text-sm text-slate-800 mb-2">{e.titulo}</h4><p className="text-xs text-slate-400 mb-2">{historyMode ? 'Encerrada' : 'Aberta'}</p></div>))} {enquetesShow.length===0 && <EmptyState icon={Vote} title="Nenhuma Votação" desc=""/>}</div>}
+             {activeTab === 'vote' && <div className="space-y-4">{enquetesShow.map(e => {
+                 const votaramArray = e.opcoes?.votaram || [];
+                 const votosDetalhados = e.opcoes?.votosDetalhados || {};
+                 const jaVotou = votaramArray.includes(unidade.id) || !!votosDetalhados[unidade.id];
+                 const meuVoto = votosDetalhados[unidade.id];
+                 const totalVotos = (e.opcoes?.sim || 0) + (e.opcoes?.nao || 0);
+                 const participacao = unidadesTotal > 0 ? Math.round((totalVotos / unidadesTotal) * 100) : 0;
+                 
+                 return (<div key={e.id} className="p-5 rounded-2xl border bg-white border-slate-100 shadow-sm"><h4 className="font-black text-sm text-slate-800 mb-1 leading-tight">{e.titulo}</h4><p className="text-[10px] text-slate-400 font-bold mb-4 uppercase flex items-center gap-2">{historyMode ? 'Encerrada' : 'Aberta'} • Adesão: {participacao}% {e.opcoes?.dataFim && `• Fim: ${e.opcoes.dataFim}`}</p>{(!historyMode) ? (<div className="space-y-3"><div className="flex gap-3"><button onClick={() => registrarVoto(e.id, 'sim', unidade.id)} className={`flex-1 py-3 rounded-xl font-black text-xs transition active:scale-95 border flex flex-col items-center gap-1 ${meuVoto === 'sim' ? 'bg-green-500 text-white border-green-600 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-green-50 hover:text-green-600'}`}>👍 SIM {meuVoto === 'sim' && <span className="text-[8px] opacity-80">(SEU VOTO)</span>}</button><button onClick={() => registrarVoto(e.id, 'nao', unidade.id)} className={`flex-1 py-3 rounded-xl font-black text-xs transition active:scale-95 border flex flex-col items-center gap-1 ${meuVoto === 'nao' ? 'bg-red-500 text-white border-red-600 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-red-50 hover:text-red-600'}`}>👎 NÃO {meuVoto === 'nao' && <span className="text-[8px] opacity-80">(SEU VOTO)</span>}</button></div>{jaVotou && <p className="text-[9px] text-center text-slate-400 italic">Você pode mudar seu voto enquanto a enquete estiver aberta.</p>}</div>) : (<div className="space-y-2 mt-4"><div className="flex gap-2"><div className="flex-1 bg-slate-50 p-3 rounded-xl text-center border border-slate-100 relative overflow-hidden"><div className="absolute top-0 left-0 bottom-0 bg-green-100 transition-all" style={{width: `${totalVotos === 0 ? 0 : ((e.opcoes?.sim||0)/totalVotos)*100}%`}}></div><div className="relative z-10 flex justify-between items-center px-2"><span className="text-xs font-bold text-slate-500">SIM</span><span className="font-black text-green-600">{e.opcoes?.sim || 0}</span></div></div><div className="flex-1 bg-slate-50 p-3 rounded-xl text-center border border-slate-100 relative overflow-hidden"><div className="absolute top-0 left-0 bottom-0 bg-red-100 transition-all" style={{width: `${totalVotos === 0 ? 0 : ((e.opcoes?.nao||0)/totalVotos)*100}%`}}></div><div className="relative z-10 flex justify-between items-center px-2"><span className="text-xs font-bold text-slate-500">NÃO</span><span className="font-black text-red-500">{e.opcoes?.nao || 0}</span></div></div></div></div>)}</div>)
+             })} {enquetesShow.length===0 && <EmptyState icon={Vote} title="Nenhuma Votação" desc=""/>}</div>}
              
              {activeTab === 'manut' && <div className="space-y-4">
-                 {zelaShow.map(z => (
-                     <div key={z.id} className="p-4 rounded-2xl border bg-white border-slate-100 shadow-sm flex items-center gap-3">
-                         {z.concluido ? <CheckSquare size={18} className="text-green-500"/> : <Square size={18} className="text-slate-300"/>}
-                         <span className={`text-xs font-bold ${z.concluido ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{z.item}</span>
-                     </div>
-                 ))} 
-                 {zelaShow.length === 0 && <EmptyState icon={Hammer} title="Tudo em Ordem" desc=""/>}
+                 {!historyMode && (<div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-6"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><AlertTriangle size={12}/> Reportar Problema</p><textarea value={novoChamado} onChange={e=>setNovoChamado(e.target.value)} placeholder="Ex: A lâmpada do corredor do 2º andar queimou..." className="w-full bg-slate-50 border border-slate-100 p-3 rounded-xl text-sm font-bold outline-none h-20 mb-2 focus:border-[#84cc16]"/><div className="flex gap-2 mb-3"><label className="flex-1 flex items-center justify-center gap-2 bg-slate-50 p-3 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500 font-bold cursor-pointer hover:bg-slate-100 transition">{uploading ? <RefreshCw size={14} className="animate-spin"/> : (fotoChamado ? <CheckCircle size={14} className="text-green-500"/> : <Camera size={14}/>)} {fotoChamado ? 'Foto Anexada' : 'Tirar Foto'}<input type="file" onChange={handleUploadFoto} className="hidden" accept="image/*"/></label></div><button onClick={() => { if(novoChamado) { abrirChamado({ item: novoChamado, data: new Date().toLocaleDateString(), concluido: false, relator: `Apto ${unidade.numero}`, url_foto: fotoChamado }); setNovoChamado(''); setFotoChamado(''); } }} className="w-full bg-[#1e293b] text-white py-4 rounded-xl font-black text-xs shadow-lg flex justify-center items-center gap-2 active:scale-95 transition"><Send size={14}/> ENVIAR CHAMADO</button></div>)}
+                 {zelaShow.map(z => (<div key={z.id} className="p-4 rounded-2xl border bg-white border-slate-100 shadow-sm flex items-start gap-3">{z.concluido ? <CheckCircle size={20} className="text-green-500 shrink-0 mt-0.5"/> : <AlertCircle size={20} className="text-orange-400 shrink-0 mt-0.5"/>}<div><span className={`text-xs font-bold block leading-relaxed ${z.concluido ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{z.item}</span>{z.url_foto && <a href={z.url_foto} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-[10px] font-black text-blue-500 bg-blue-50 px-2 py-1 rounded-md"><ImageIcon size={10}/> VER FOTO</a>}<div className="flex items-center gap-2 mt-2"><span className="text-[9px] font-bold text-slate-400 uppercase bg-slate-100 px-2 py-0.5 rounded">{z.data}</span>{z.relator && <span className="text-[9px] font-bold text-slate-400 uppercase bg-slate-100 px-2 py-0.5 rounded">{z.relator}</span>}</div></div></div>))} 
+                 {zelaShow.length === 0 && <EmptyState icon={Wrench} title="Tudo em Ordem" desc=""/>}
              </div>}
           </div>
        </div>
+
+       {verContatos && (
+           <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm animate-in fade-in">
+               <div className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-sm p-6 shadow-2xl animate-in slide-in-from-bottom-10 max-h-[85vh] flex flex-col">
+                   <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="font-black text-xl flex items-center gap-2 text-slate-800"><Contact size={24} className="text-teal-500"/> Contatos & Info</h3><button onClick={() => setVerContatos(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition"><X size={20}/></button></div>
+                   <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4">
+                       {config.telefonesUteis && config.telefonesUteis.filter(t => t.numero.trim() !== '').map((t, idx) => (<div key={idx} className="flex justify-between items-center bg-slate-50 border border-slate-100 p-4 rounded-2xl"><div><p className="font-black text-slate-700 text-sm">{t.nome}</p><p className="text-xs font-bold text-slate-500">{t.numero}</p></div>{t.numero.replace(/\D/g, '').length >= 8 && <a href={`tel:${t.numero.replace(/\D/g, '')}`} className="bg-teal-50 text-teal-600 p-3 rounded-full hover:bg-teal-100 transition active:scale-95 shadow-sm border border-teal-100"><PhoneCall size={18}/></a>}</div>))}
+                   </div>
+                   <div className="pt-4 border-t shrink-0"><button onClick={() => setPrintMode('cartaz')} className="w-full bg-slate-100 text-slate-600 py-4 rounded-xl font-black text-xs hover:bg-slate-200 transition flex justify-center items-center gap-2"><Printer size={16}/> IMPRIMIR CARTAZ P/ ELEVADOR</button></div>
+               </div>
+           </div>
+       )}
+
+       {verRecibos && (
+           <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm animate-in fade-in">
+               <div className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-sm p-6 shadow-2xl animate-in slide-in-from-bottom-10 max-h-[85vh] flex flex-col">
+                   <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="font-black text-xl flex items-center gap-2 text-slate-800"><History size={24} className="text-blue-500"/> Meus Recibos</h3><button onClick={() => setVerRecibos(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition"><X size={20}/></button></div>
+                   
+                   <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4">
+                       {meusPagamentos.map(p => {
+                           const expandido = reciboExpandido === p.id;
+                           return (
+                           <div key={p.id} className={`bg-slate-50 p-4 rounded-2xl border transition-all ${expandido ? 'border-blue-300 shadow-md' : 'border-slate-200'}`}>
+                               <div className="flex justify-between items-center cursor-pointer" onClick={() => setReciboExpandido(expandido ? null : p.id)}>
+                                   <div>
+                                       <p className="font-black text-slate-800 text-sm">{fmt(p.valor)}</p>
+                                       <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Ref: {p.mes}/{p.ano}</p>
+                                   </div>
+                                   <div className="flex items-center gap-2">
+                                       <span className="text-[9px] font-black text-green-600 bg-green-100 px-2 py-1 rounded uppercase">PAGO</span>
+                                       {expandido ? <ChevronUp size={16} className="text-slate-400"/> : <ChevronDown size={16} className="text-slate-400"/>}
+                                   </div>
+                               </div>
+                               {expandido && (
+                                   <div className="mt-4 pt-4 border-t border-slate-200 border-dashed animate-in fade-in slide-in-from-top-2">
+                                       <div className="mb-4">
+                                           <p className="text-[9px] font-bold text-slate-400 uppercase">Data do Pagamento</p>
+                                           <p className="text-xs font-black text-slate-700">{p.data}</p>
+                                       </div>
+                                       <div className="mb-4 bg-blue-50/50 p-2 rounded">
+                                           <p className="text-[9px] font-bold text-blue-400 uppercase">Autenticidade</p>
+                                           <p className="text-xs font-mono font-bold text-slate-600 tracking-wider break-all">{p.hash_recibo || 'N/A'}</p>
+                                       </div>
+                                       {p.url_comprovante && (
+                                           <a href={p.url_comprovante} target="_blank" rel="noopener noreferrer" className="w-full text-[10px] font-black text-blue-600 bg-blue-100 py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-200 transition shadow-sm mb-2"><Paperclip size={14}/> VER FOTO DO COMPROVANTE</a>
+                                       )}
+                                       <button onClick={() => { setModalReciboVisual({pagamento: p, unidade}); setVerRecibos(false); }} className="w-full text-[10px] font-black text-white bg-blue-500 py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-600 transition shadow-sm"><Receipt size={14}/> GERAR PDF COMPLETO</button>
+                                   </div>
+                               )}
+                           </div>
+                       )})}
+                       {meusPagamentos.length === 0 && <EmptyState icon={Receipt} title="Nenhum recibo" desc="Você ainda não tem histórico de pagamentos registrados." />}
+                   </div>
+               </div>
+           </div>
+       )}
+
+       {modalConfig && <ModalConfiguracoesMorador onClose={() => setModalConfig(false)} showToast={showToast} supabase={supabase} onSair={onExit} />}
+       {modalInstalar && <ModalInstalarApp onClose={() => setModalInstalar(false)} />}
     </div>
   )
 }
 
-function ModalConfirmacao({ data, onClose }) { 
-    if (!data) return null; 
-    return <div className="fixed inset-0 bg-[#1e293b]/90 z-[10000] flex items-center justify-center p-6 backdrop-blur-md animate-in fade-in duration-200"><div className="bg-white p-8 rounded-[32px] max-w-sm w-full text-center shadow-2xl animate-in zoom-in duration-300"><div className="bg-red-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500"><AlertTriangle size={32}/></div><h3 className="font-black text-xl text-[#1e293b] mb-2">{data.titulo}</h3><p className="text-sm text-slate-500 mb-8 font-medium leading-relaxed">{data.texto}</p><div className="flex gap-3"><button onClick={onClose} className="flex-1 py-3 text-slate-400 font-bold text-xs uppercase hover:text-slate-600 transition">Cancelar</button><button onClick={data.onConfirm} className="flex-1 bg-red-500 text-white py-3 rounded-xl font-black text-xs uppercase shadow-lg hover:bg-red-600 transition active:scale-95">Confirmar</button></div></div></div>; 
-}
+// ==========================================
+// MODAIS E COMPONENTES AUXILIARES (COMPLETOS)
+// ==========================================
 
-// --- WIZARD COM GERADOR DE APARTAMENTOS ---
-function SetupWizard({ config, setConfig, setUnidades, onDemo, onComplete, supabase, session }) {
-    const [step, setStep] = useState(1);
-    const [local, setLocal] = useState({...config});
-    const [blocos, setBlocos] = useState('');
-    const [andares, setAndares] = useState('');
-    const [aptosPorAndar, setAptosPorAndar] = useState('');
-    const [listaGerada, setListaGerada] = useState([]);
-    const [saving, setSaving] = useState(false);
-    const [usarZero, setUsarZero] = useState(true); // Estilo 101 ou 11
-
-    const gerarApartamentos = () => {
-        if(!blocos && (!andares || !aptosPorAndar)) return;
-        
-        let novaLista = [];
-        // Se só tiver blocos e sem andares (ex: casas)
-        const listaBlocos = blocos ? blocos.split(',').map(b => b.trim()).filter(b=>b) : [''];
-        
-        if (andares && aptosPorAndar) {
-            const numAndares = parseInt(andares);
-            const numAptos = parseInt(aptosPorAndar);
-            listaBlocos.forEach(bloco => {
-                for(let i=1; i<=numAndares; i++) {
-                    for(let j=1; j<=numAptos; j++) {
-                        const numero = usarZero ? `${i}0${j}` : `${i}${j}`;
-                        const nomeFinal = bloco ? `${bloco}-${numero}` : numero;
-                        novaLista.push(nomeFinal);
-                    }
-                }
-            });
-        } else if (listaBlocos.length > 0) {
-            // Apenas blocos (ex: Casas)
-            novaLista = listaBlocos;
-        }
-
-        setListaGerada(prev => [...new Set([...prev, ...novaLista])]); 
-    };
-
-    const handleSave = async () => {
-        setSaving(true);
-        if (listaGerada.length === 0 && step === 4) { alert("Gere os apartamentos primeiro."); setSaving(false); return; }
-        try {
-            await supabase.from('config_geral').upsert({ user_id: session.user.id, dados: local });
-            const unitsToInsert = listaGerada.map(n => ({ user_id: session.user.id, numero: n, proprietario: {}, inquilino: {}, mora_proprietario: true }));
-            if(unitsToInsert.length > 0) {
-               const { data: insertedUnits } = await supabase.from('unidades').insert(unitsToInsert).select();
-               if(insertedUnits) setUnidades(insertedUnits);
-            }
-            setConfig(local); onComplete();
-        } catch (e) { alert("Erro ao salvar: " + e.message); } finally { setSaving(false); }
-    }
-    
-    // Validação passo a passo
-    const nextStep = () => {
-        if(step === 1 && (!local.predioNome || !local.sindicaNome || !local.telefoneSindico)) return alert("Preencha todos os campos obrigatórios.");
-        if(step === 2 && (!local.valorCondominio)) return alert("Defina o valor do condomínio.");
-        if (step < 4) setStep(step + 1); else handleSave();
-    };
-
-    const prevStep = () => {
-        if(step > 1) setStep(step - 1);
-    }
-
+function ModalConfirmacao({ data, onClose }) {
     return (
-        <div className="fixed inset-0 bg-white z-[10010] flex flex-col p-8 font-sans text-left overflow-y-auto">
-            <div className="max-w-md mx-auto w-full">
-                <div className="mb-10 flex justify-between items-center">
-                    <Logo variant="simple" width="w-48" />
-                    {step > 1 && <button onClick={prevStep} className="bg-slate-100 p-2 rounded-full text-slate-500 hover:bg-slate-200"><ArrowLeft size={20}/></button>}
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-[32px] p-6 max-w-sm w-full shadow-2xl animate-in zoom-in text-center">
+                <div className="bg-red-50 text-red-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"><AlertTriangle size={32}/></div>
+                <h3 className="text-xl font-black text-slate-800 mb-2">{data.titulo}</h3>
+                <p className="text-sm text-slate-500 mb-6">{data.texto}</p>
+                <div className="flex gap-3">
+                    <button onClick={onClose} className="flex-1 py-3 text-slate-500 font-bold bg-slate-100 rounded-xl hover:bg-slate-200 transition">Cancelar</button>
+                    <button onClick={data.onConfirm} className="flex-1 py-3 text-white font-black bg-red-500 rounded-xl hover:bg-red-600 transition shadow-lg">Confirmar</button>
                 </div>
-                <div className="flex gap-2 mb-10">{[1,2,3,4].map(i => <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${step >= i ? 'bg-[#1e293b]' : 'bg-slate-100'}`}></div>)}</div>
-                {step === 1 && (<div><h2 className="text-3xl font-black text-slate-900 mb-2 leading-tight">Configurar Prédio 🏢</h2><p className="text-slate-500 mb-10 font-medium">Informações básicas do condomínio.</p><div className="space-y-6"><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nome do Condomínio</span><input value={local.predioNome || ""} onChange={e=>setLocal({...local, predioNome:e.target.value})} placeholder="Ex: Residencial Solar" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black focus:border-[#84cc16] outline-none transition-all"/></label><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">Seu Nome (Síndico)</span><input value={local.sindicaNome || ""} onChange={e=>setLocal({...local, sindicaNome:e.target.value})} placeholder="Ex: Maria Clara" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black focus:border-[#84cc16] outline-none transition-all"/></label><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">WhatsApp do Síndico (Obrigatório)</span><input value={local.telefoneSindico || ""} onChange={e=>setLocal({...local, telefoneSindico:e.target.value})} placeholder="Ex: 11999999999" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black focus:border-[#84cc16] outline-none transition-all"/></label></div></div>)}
-                {step === 2 && (<div><h2 className="text-3xl font-black text-slate-900 mb-2 leading-tight">Valores e PIX 💰</h2><p className="text-slate-500 mb-10 font-medium">Como seus moradores devem pagar?</p><div className="space-y-6"><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Condomínio Mensal</span><input type="number" value={safeNum(local.valorCondominio)} onChange={e=>setLocal({...local, valorCondominio:Number(e.target.value)})} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black text-green-600 focus:border-[#84cc16] outline-none"/></label><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chave PIX</span><input value={local.chavePix || ""} onChange={e=>setLocal({...local, chavePix:e.target.value})} placeholder="E-mail, CPF ou Aleatória" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black focus:border-[#84cc16] outline-none"/></label></div></div>)}
-                {step === 3 && (<div><h2 className="text-3xl font-black text-slate-900 mb-2 leading-tight">Finanças Iniciais 🏦</h2><p className="text-slate-500 mb-10 font-medium">Vamos definir o ponto de partida.</p><div className="space-y-6"><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mês de Início</span><input type="month" value={local.inicioOperacao ? local.inicioOperacao.substring(0,7) : new Date().toISOString().slice(0, 7)} onChange={e => setLocal({...local, inicioOperacao: `${e.target.value}-01`})} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black focus:border-[#84cc16] outline-none"/></label><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Atual em Caixa (R$)</span><input type="number" value={safeNum(local.saldoInicial)} onChange={e=>setLocal({...local, saldoInicial:Number(e.target.value)})} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black text-green-600 focus:border-[#84cc16] outline-none"/></label></div></div>)}
-                {step === 4 && (<div><h2 className="text-3xl font-black text-slate-900 mb-2 leading-tight">Gerador de Aptos 🏠</h2><p className="text-slate-500 mb-6 font-medium">Gere os números automaticamente.</p><div className="bg-slate-50 p-4 rounded-2xl border mb-6"><div className="grid grid-cols-3 gap-2 mb-4"><input placeholder="Blocos (A,B)" value={blocos} onChange={e=>setBlocos(e.target.value)} className="p-2 border rounded-lg text-xs font-bold"/><input placeholder="Andares (ex: 5)" type="number" value={andares} onChange={e=>setAndares(e.target.value)} className="p-2 border rounded-lg text-xs font-bold"/><input placeholder="Aptos/Andar" type="number" value={aptosPorAndar} onChange={e=>setAptosPorAndar(e.target.value)} className="p-2 border rounded-lg text-xs font-bold"/></div><div className="flex items-center gap-4 mb-4"><label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer"><input type="radio" checked={usarZero} onChange={()=>setUsarZero(true)} className="accent-[#1e293b]"/> Estilo: 101, 102...</label><label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer"><input type="radio" checked={!usarZero} onChange={()=>setUsarZero(false)} className="accent-[#1e293b]"/> Estilo: 11, 12...</label></div><button onClick={gerarApartamentos} className="w-full bg-[#1e293b] text-white py-2 rounded-lg font-black text-xs uppercase">Gerar Lista</button></div><div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">{listaGerada.map((a,i) => (<div key={i} className="bg-white border px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2">{a} <button onClick={()=>setListaGerada(listaGerada.filter(x=>x!==a))} className="text-red-500"><X size={12}/></button></div>))} {listaGerada.length===0 && <p className="text-slate-400 text-xs italic">Lista vazia.</p>}</div></div>)}
-                <div className="mt-10 flex flex-col gap-4"><button disabled={saving} onClick={nextStep} className="w-full bg-[#1e293b] text-white py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-2 shadow-2xl transition active:scale-95 disabled:opacity-50">{saving ? <RefreshCw className="animate-spin"/> : (step === 4 ? 'FINALIZAR SETUP' : 'PRÓXIMO')} <ArrowRight size={20}/></button>{step === 1 && <button onClick={onDemo} className="w-full text-sm font-black text-[#84cc16] py-3 flex items-center justify-center gap-2 hover:bg-slate-50 rounded-xl transition uppercase tracking-tighter"><Sparkles size={16}/> Gerar dados de teste</button>}</div>
             </div>
         </div>
     );
 }
 
-function ModalConfiguracoes({ config, setConfig, onClose, triggerConfirm, resetar, despesas, showToast, exportarBackup, importarBackup }) {
-  const [local, setLocal] = useState({...config});
-  const [activeTab, setActiveTab] = useState('geral');
-  const [bloqueado, setBloqueado] = useState(true);
-  const [novaCat, setNovaCat] = useState('');
-
-  return (
-    <div className="fixed inset-0 bg-[#1e293b]/80 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm text-left">
-       <div className="bg-white rounded-[32px] w-full max-w-2xl p-0 shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
-          <div className="bg-[#1e293b] p-6 text-white text-center"><h3 className="font-black text-xl tracking-tighter mb-4">Ajustes & Configuração</h3><div className="flex gap-1 justify-center bg-black/20 p-1 rounded-xl overflow-x-auto"><button onClick={() => setActiveTab('geral')} className={`flex-1 min-w-[80px] py-2 rounded-lg text-[10px] font-black uppercase transition ${activeTab === 'geral' ? 'bg-[#84cc16] text-[#1e293b]' : 'text-slate-400 hover:text-white'}`}>🏢 Geral</button><button onClick={() => setActiveTab('cats')} className={`flex-1 min-w-[80px] py-2 rounded-lg text-[10px] font-black uppercase transition ${activeTab === 'cats' ? 'bg-[#84cc16] text-[#1e293b]' : 'text-slate-400 hover:text-white'}`}>🏷️ Categorias</button><button onClick={() => setActiveTab('sistema')} className={`flex-1 min-w-[80px] py-2 rounded-lg text-[10px] font-black uppercase transition ${activeTab === 'sistema' ? 'bg-[#84cc16] text-[#1e293b]' : 'text-slate-400 hover:text-white'}`}>⚙️ Sistema</button></div></div>
-          <div className="p-6 overflow-y-auto flex-1">
-              {activeTab === 'geral' && (<div className="space-y-4"><div className="flex justify-between items-center mb-3 border-b pb-2"><span className="text-[10px] font-black uppercase text-slate-500">Dados do Prédio</span><button onClick={() => setBloqueado(!bloqueado)} className={`text-[9px] font-black border px-2 py-1 rounded flex items-center gap-1 ${bloqueado ? 'bg-slate-100 text-slate-500' : 'bg-white border-red-200 text-red-500'}`}>{bloqueado ? <Lock size={10}/> : <Unlock size={10}/>} {bloqueado ? 'BLOQUEADO' : 'EDITANDO'}</button></div><div className={`space-y-4 ${bloqueado ? 'opacity-50 pointer-events-none' : ''}`}><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">Nome Prédio</span><input value={local.predioNome} onChange={e=>setLocal({...local, predioNome:e.target.value})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold outline-none"/></label><div className="grid grid-cols-2 gap-4"><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">Valor Cond.</span><input type="number" value={local.valorCondominio} onChange={e=>setLocal({...local, valorCondominio:Number(e.target.value)})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold outline-none"/></label><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">Dia Venc.</span><input type="number" value={local.diaVencimento} onChange={e=>setLocal({...local, diaVencimento:Number(e.target.value)})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold outline-none"/></label></div><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">WhatsApp Síndico</span><input value={local.telefoneSindico} onChange={e=>setLocal({...local, telefoneSindico:e.target.value})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold outline-none"/></label><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">Chave Pix</span><input value={local.chavePix} onChange={e=>setLocal({...local, chavePix:e.target.value})} className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold outline-none"/></label></div></div>)}
-              {activeTab === 'cats' && (<div className="space-y-4"><p className="text-xs text-slate-500 mb-2">Adicione ou remova categorias de despesas.</p><div className="flex gap-2"><input value={novaCat} onChange={e=>setNovaCat(e.target.value)} placeholder="Nova Categoria..." className="flex-1 border-2 border-slate-100 p-3 rounded-xl text-sm font-bold outline-none"/><button onClick={() => {if(novaCat) { setLocal({...local, categorias: [...local.categorias, novaCat]}); setNovaCat(''); }}} className="bg-[#84cc16] text-[#1e293b] p-3 rounded-xl font-black"><PlusCircle size={18}/></button></div><div className="flex flex-wrap gap-2">{local.categorias.map(c => <span key={c} className="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-2">{c} <button onClick={() => {if (CATEGORIAS_PADRAO.includes(c)) { showToast(`"${c}" é padrão do sistema.`, 'error'); return; } const emUso = despesas.some(d => d.categoria === c); if(emUso) { showToast(`Categoria "${c}" em uso!`, 'error'); return; } setLocal({...local, categorias: local.categorias.filter(x => x !== c)})}} className="text-red-400 hover:text-red-600"><X size={12}/></button></span>)}</div></div>)}
-              {activeTab === 'sistema' && (<div className="space-y-4"><div className="flex justify-between items-center mb-3 border-b pb-2"><span className="text-[10px] font-black uppercase text-slate-500">Backup & Reset</span></div>
-                  <div className="grid grid-cols-2 gap-4">
-                      <button onClick={exportarBackup} className="bg-blue-50 text-blue-600 p-4 rounded-2xl font-bold text-xs flex flex-col items-center gap-2 hover:bg-blue-100"><Download size={24}/> Baixar Backup (JSON)</button>
-                      <label className="bg-green-50 text-green-600 p-4 rounded-2xl font-bold text-xs flex flex-col items-center gap-2 hover:bg-green-100 cursor-pointer"><Upload size={24}/> Restaurar Backup <input type="file" onChange={importarBackup} className="hidden" accept=".json"/></label>
-                  </div>
-                  <div className="pt-4 border-t border-slate-100"><button onClick={() => triggerConfirm({ titulo: "Resetar Tudo?", texto: "Isso apagará TODOS os dados atuais. Irreversível.", onConfirm: () => { resetar(); triggerConfirm(null); } })} className="w-full py-4 text-red-500 font-black text-xs uppercase flex items-center justify-center gap-2 hover:bg-red-50 rounded-xl transition"><RotateCcw size={16}/> Reiniciar Configuração (Reset)</button></div></div>)}
-          </div>
-          <div className="p-6 bg-slate-50 border-t flex gap-3 shrink-0"><button onClick={onClose} className="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Cancelar</button><button onClick={() => { setConfig(local); onClose(); }} className="flex-1 bg-[#84cc16] text-[#1e293b] rounded-2xl font-black text-xs shadow-xl">SALVAR</button></div>
-       </div>
-    </div>
-  );
-}
-
-function ModalReceber({ valorSugerido, onCancel, onConfirm, supabase }) { 
-    const [uploading, setUploading] = useState(false);
-    const [url, setUrl] = useState('');
-    const handleUpload = async (e) => {
-        try { setUploading(true); const file = e.target.files[0]; if(!file) return; const ext = file.name.split('.').pop(); const name = `${Date.now()}.${ext}`; await supabase.storage.from('comprovantes').upload(name, file); const {data} = supabase.storage.from('comprovantes').getPublicUrl(name); setUrl(data.publicUrl); } catch(err){console.error(err)} finally {setUploading(false)}
-    }
-    return <div className="fixed inset-0 bg-[#1e293b]/80 z-[10000] flex items-center justify-center p-4 backdrop-blur-sm text-left"><div className="bg-white rounded-3xl w-full max-w-xs p-8 shadow-2xl"><h3 className="font-black text-slate-900 text-xl mb-6">Receber Pagamento</h3><div className="space-y-5"><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Recebido</span><input type="number" defaultValue={valorSugerido} id="valPag" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black text-green-600 outline-none focus:border-[#84cc16]" /></label><label className="block"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</span><input type="date" defaultValue={new Date().toISOString().split('T')[0]} id="datPag" className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold outline-none focus:border-[#84cc16]" /></label>
-    
-    <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col items-center justify-center gap-2 p-4 border border-slate-200 rounded-2xl hover:bg-slate-50 cursor-pointer">
-            <Camera className="text-slate-400"/>
-            <span className="text-[10px] font-black uppercase text-slate-500">Tirar Foto</span>
-            <input type="file" capture="environment" accept="image/*" onChange={handleUpload} className="hidden"/>
-        </label>
-        <label className="flex flex-col items-center justify-center gap-2 p-4 border border-slate-200 rounded-2xl hover:bg-slate-50 cursor-pointer">
-            <ImageSimple className="text-slate-400"/>
-            <span className="text-[10px] font-black uppercase text-slate-500">Galeria</span>
-            <input type="file" accept="image/*,application/pdf" onChange={handleUpload} className="hidden"/>
-        </label>
-    </div>
-    {url && <div className="text-center text-xs font-bold text-green-600 bg-green-50 p-2 rounded-lg flex items-center justify-center gap-2"><CheckCircle size={14}/> Comprovante Anexado!</div>}
-    {uploading && <div className="text-center"><RefreshCw className="animate-spin inline text-slate-400"/></div>}
-
-    <div className="flex gap-3 pt-4"><button onClick={onCancel} className="flex-1 text-slate-400 font-black text-xs uppercase">Cancelar</button><button onClick={() => onConfirm(Number(document.getElementById('valPag').value), document.getElementById('datPag').value.split('-').reverse().join('/'), url)} className="flex-2 bg-[#84cc16] text-[#1e293b] py-4 rounded-2xl font-black shadow-lg flex-1">Confirmar</button></div></div></div></div>; 
-}
-
-function ModalDetalhesUnidade({ dados, sindica, chavePix, onAdd, onDelete, onClose, copiarTexto, fmt, supabase }) { 
-    const [novoValor, setNovoValor] = useState(''); const [novaData, setNovaData] = useState(new Date().toISOString().split('T')[0]); const [url, setUrl] = useState('');
-    const handleUpload = async (e) => { const file = e.target.files[0]; if(!file) return; const name = `${Date.now()}.${file.name.split('.').pop()}`; await supabase.storage.from('comprovantes').upload(name, file); const {data} = supabase.storage.from('comprovantes').getPublicUrl(name); setUrl(data.publicUrl); }
-    return <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm text-left"><div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl"><div className="flex justify-between items-center mb-6"><div><h3 className="font-black text-xl text-slate-900 tracking-tighter">Extrato Apto {dados.u.numero}</h3><p className="text-xs font-bold text-slate-400 uppercase">{dados.mes}/{dados.ano}</p></div><button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100"><X size={24}/></button></div><div className="space-y-4 mb-6 max-h-48 overflow-y-auto">{dados.pags.map(p => (<div key={p.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100"><div><p className="font-black text-slate-700 text-sm flex items-center gap-2">{fmt(p.valor)} {p.url_comprovante && <a href={p.url_comprovante} target="_blank" className="text-blue-500"><Paperclip size={12}/></a>}</p><p className="text-[10px] text-slate-400 font-bold uppercase">Pago em {p.data}</p></div><button onClick={() => onDelete(p.id)} className="text-red-300 hover:text-red-500 p-2"><Trash2 size={16}/></button></div>))}{dados.pags.length === 0 && <p className="text-center text-slate-400 text-xs italic">Nenhum pagamento.</p>}</div><div className="pt-6 border-t border-slate-100"><p className="text-[10px] font-black text-slate-400 uppercase mb-2">Adicionar Pagamento</p><div className="flex gap-2 mb-2"><input type="number" placeholder="Valor" value={novoValor} onChange={e=>setNovoValor(e.target.value)} className="w-1/2 border-2 border-slate-100 p-3 rounded-xl font-bold text-sm outline-none"/><input type="date" value={novaData} onChange={e=>setNovaData(e.target.value)} className="w-1/2 border-2 border-slate-100 p-3 rounded-xl font-bold text-xs outline-none"/></div><label className="flex items-center gap-2 bg-slate-50 p-3 rounded-xl border border-dashed border-slate-200 text-xs text-slate-400 mb-2 cursor-pointer">{url ? 'Comprovante OK' : 'Anexar Foto'}<input type="file" onChange={handleUpload} className="hidden"/></label><button onClick={() => {if(novoValor) onAdd(Number(novoValor), novaData.split('-').reverse().join('/'), url)}} className="w-full bg-[#1e293b] text-white py-3 rounded-xl font-black text-xs shadow-lg"><PlusCircle size={16} className="mx-auto"/></button></div></div></div>; 
-}
-
-function ModalDespesa({ supabase, onClose, onSave, despesaParaEditar = null, planoAtual, abrirConfig, categorias, triggerConfirm }) { 
-    const hojeYMD = new Date().toISOString().split('T')[0];
-    const [desc, setDesc] = useState(despesaParaEditar ? despesaParaEditar.descricao : ''); 
-    const [val, setVal] = useState(despesaParaEditar ? despesaParaEditar.valor : ''); 
-    const [cat, setCat] = useState(despesaParaEditar ? despesaParaEditar.categoria : (categorias[0] || 'Outros')); 
-    const [data, setData] = useState(despesaParaEditar ? despesaParaEditar.data.split('/').reverse().join('-') : hojeYMD); 
-    const [pago, setPago] = useState(despesaParaEditar ? despesaParaEditar.pago : false);
-    const [url, setUrl] = useState(despesaParaEditar ? despesaParaEditar.url_comprovante : '');
-    const [repetir, setRepetir] = useState(false);
-    const [uploading, setUploading] = useState(false);
-
-    const handleUpload = async (event) => {
-        try {
-            setUploading(true);
-            const file = event.target.files[0];
-            if (!file) return;
-            const fileName = `${Date.now()}.${file.name.split('.').pop()}`;
-            await supabase.storage.from('comprovantes').upload(fileName, file);
-            const { data } = supabase.storage.from('comprovantes').getPublicUrl(fileName);
-            setUrl(data.publicUrl);
-        } catch (error) { console.error(error); } finally { setUploading(false); }
-    };
-
-    const tentarSalvar = () => {
-        if(!desc || !val) return;
-        const saveAction = () => onSave({descricao:desc, valor:Number(val), categoria:cat, data, pago, url_comprovante: url}, repetir);
-        if(!url && pago) { triggerConfirm({ titulo: "Sem Comprovante", texto: "Salvar sem link de comprovante?", onConfirm: () => { saveAction(); triggerConfirm(null); } }); } else { saveAction(); }
-    };
-
-    return <div className="fixed inset-0 bg-[#1e293b]/80 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm text-left"><div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl animate-in zoom-in duration-300"><h3 className="font-black text-red-600 text-xl mb-6 flex items-center gap-2 tracking-tighter"><ArrowDownCircle/> {despesaParaEditar ? 'Editar' : 'Lançar'} Despesa</h3><div className="space-y-4"><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">O que foi pago?</span><input placeholder="Ex: Manutenção Portão" value={desc} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black outline-none focus:border-red-400 transition-all" onChange={e=>setDesc(e.target.value)}/></label><div className="flex gap-3 text-left"><label className="w-1/2 block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Valor</span><input type="number" placeholder="0,00" value={val} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-black text-red-600 outline-none focus:border-red-400" onChange={e=>setVal(e.target.value)}/></label><label className="w-1/2 block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Data</span><input type="date" value={data} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold text-xs outline-none" onChange={e=>setData(e.target.value)}/></label></div><label className="block text-left"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Categoria</span><div className="flex gap-2"><select className="w-full border-2 border-slate-100 p-4 rounded-2xl bg-white font-black outline-none focus:border-red-400" onChange={e=>setCat(e.target.value)} value={cat}>{categorias.map(c=><option key={c} value={c}>{c}</option>)}</select><button onClick={abrirConfig} className="bg-slate-100 px-4 rounded-2xl text-slate-500 hover:bg-slate-200"><PlusCircle size={20}/></button></div></label>
-    
-    <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col items-center justify-center gap-2 p-4 border border-slate-200 rounded-2xl hover:bg-slate-50 cursor-pointer">
-            <Camera className="text-slate-400"/>
-            <span className="text-[10px] font-black uppercase text-slate-500">Tirar Foto</span>
-            <input type="file" capture="environment" accept="image/*" onChange={handleUpload} className="hidden"/>
-        </label>
-        <label className="flex flex-col items-center justify-center gap-2 p-4 border border-slate-200 rounded-2xl hover:bg-slate-50 cursor-pointer">
-            <ImageSimple className="text-slate-400"/>
-            <span className="text-[10px] font-black uppercase text-slate-500">Galeria</span>
-            <input type="file" accept="image/*,application/pdf" onChange={handleUpload} className="hidden"/>
-        </label>
-    </div>
-    {url && <div className="text-center text-xs font-bold text-green-600 bg-green-50 p-2 rounded-lg flex items-center justify-center gap-2"><CheckCircle size={14}/> Comprovante Anexado!</div>}
-    {uploading && <div className="text-center"><RefreshCw className="animate-spin inline text-slate-400"/></div>}
-
-    <div className="flex items-center gap-3 p-4 border-2 rounded-2xl bg-slate-50 cursor-pointer hover:bg-slate-100 transition text-left"><input type="checkbox" checked={pago} onChange={e=>setPago(e.target.checked)} className="w-5 h-5 rounded-md accent-red-500"/><span className="text-[10px] font-black text-slate-800 uppercase tracking-tighter block">Já foi pago?</span></div>{!despesaParaEditar && (<label className="flex items-center gap-3 p-4 border-2 rounded-2xl bg-slate-50 cursor-pointer hover:bg-slate-100 transition text-left"><input type="checkbox" checked={repetir} onChange={e=>setRepetir(e.target.checked)} className="w-5 h-5 rounded-md accent-red-500"/><div><span className="text-[10px] font-black text-slate-800 uppercase tracking-tighter block">Repetir mensalmente</span><span className="text-[9px] font-medium text-slate-400">Gera cópias até Dezembro</span></div></label>)}<div className="flex gap-2 pt-6"><button onClick={onClose} className="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Cancelar</button><button onClick={tentarSalvar} className="flex-2 bg-red-500 text-white py-4 rounded-2xl font-black shadow-xl flex-1 transition active:scale-95">SALVAR</button></div></div></div></div>; 
-}
-
-// ... Rest of the components (ModalEditarUnidade, ModalRelatorio, ModalZeladoria, etc.) remain unchanged ...
-
-function ModalEditarUnidade({ u, onClose, onSave, ativarModoMorador, showToast, config, copiarTexto }) { 
-    const [dados, setDados] = useState({...u}); 
-    const [moraProp, setMoraProp] = useState(u.mora_proprietario);
-    
-    // Auto-update logic: Se Proprietário Mora = True, copia dados
-    useEffect(() => {
-        if(moraProp) {
-            setDados(prev => ({...prev, inquilino: {...prev.proprietario}, mora_proprietario: true}));
-        } else {
-            setDados(prev => ({...prev, mora_proprietario: false}));
-        }
-    }, [moraProp]);
-
-    const up = (field, val, isProp) => { 
-        if(isProp) {
-            const novoProp = {...(dados.proprietario || {}), [field]:val};
-            setDados(prev => {
-                const newState = {...prev, proprietario: novoProp};
-                if(moraProp) newState.inquilino = novoProp; // Sync instantâneo
-                return newState;
-            });
-        } else {
-            if(!moraProp) setDados({...dados, inquilino:{...(dados.inquilino || {}), [field]:val}});
-        }
-    };
-
-    const gerarLinkConvite = () => {
-        const link = `${window.location.origin + window.location.pathname}?invite=${u.numero}`;
-        const msg = `🏢 *${config.predioNome}*\n\nOlá! Segue seu link de acesso exclusivo para o *Apto ${u.numero}*.\n\n🔗 Clique para entrar: ${link}`;
-        copiarTexto(msg); window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank'); showToast('Link de convite gerado!');
-    };
+function ModalInstalarApp({ onClose }) {
     return (
-        <div className="fixed inset-0 bg-[#1e293b]/80 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm text-left">
-            <div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-center mb-6"><h3 className="font-black text-2xl tracking-tighter text-slate-900 text-left">Apto {safeStr(u.numero)}</h3>{dados.linked_user_id ? ( <span className="bg-green-100 text-green-700 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1 uppercase"><UserCheck size={10}/> Vinculado</span> ) : ( <span className="bg-slate-100 text-slate-500 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1 uppercase"><UserX size={10}/> Aguardando</span> )}</div>
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-[32px] p-8 max-w-sm w-full shadow-2xl animate-in zoom-in text-center relative overflow-hidden">
+                <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-800"><X size={20}/></button>
+                <div className="bg-[#84cc16]/10 text-[#84cc16] w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><MonitorPlay size={40}/></div>
+                <h3 className="text-2xl font-black text-slate-800 mb-2">Instale o App</h3>
+                <p className="text-sm text-slate-500 mb-6 font-medium">O CondoLeve funciona direto no seu celular como um aplicativo nativo, sem ocupar espaço.</p>
+                <div className="text-left bg-slate-50 p-4 rounded-2xl space-y-3 mb-6">
+                    <p className="text-xs font-bold text-slate-700 flex items-start gap-2"><div className="bg-[#1e293b] text-white w-5 h-5 rounded flex items-center justify-center shrink-0">1</div> Abra as opções do seu navegador (três pontinhos ou botão compartilhar).</p>
+                    <p className="text-xs font-bold text-slate-700 flex items-start gap-2"><div className="bg-[#1e293b] text-white w-5 h-5 rounded flex items-center justify-center shrink-0">2</div> Escolha "Adicionar à Tela Inicial".</p>
+                    <p className="text-xs font-bold text-slate-700 flex items-start gap-2"><div className="bg-[#1e293b] text-white w-5 h-5 rounded flex items-center justify-center shrink-0">3</div> Confirme e acesse o ícone na sua tela inicial!</p>
+                </div>
+                <button onClick={onClose} className="w-full bg-[#1e293b] text-white py-4 rounded-xl font-black text-xs hover:bg-black transition">ENTENDI</button>
+            </div>
+        </div>
+    );
+}
+
+function ModalReceber({ valorSugerido, onClose, onConfirm, supabase }) {
+    const [valor, setValor] = useState(valorSugerido || '');
+    const [data, setData] = useState(new Date().toLocaleDateString('pt-BR'));
+    const [url, setUrl] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleUpload = async (e) => {
+        try {
+            setLoading(true);
+            const file = e.target.files[0];
+            if(!file) return;
+            const nome = `pgto_${Date.now()}.${file.name.split('.').pop()}`;
+            await supabase.storage.from('comprovantes').upload(nome, file);
+            const { data: pubData } = supabase.storage.from('comprovantes').getPublicUrl(nome);
+            setUrl(pubData.publicUrl);
+        } catch(err) {
+            console.error(err);
+        } finally { setLoading(false); }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-[32px] p-6 max-w-sm w-full shadow-2xl animate-in zoom-in">
+                <h3 className="text-xl font-black text-slate-800 mb-4 flex items-center gap-2"><DollarSign className="text-green-500"/> Receber Pagamento</h3>
                 <div className="space-y-4">
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left">
-                        <p className="text-[10px] font-black text-[#1e293b] uppercase mb-2 tracking-widest opacity-50 text-left">Proprietário (Dono)</p>
-                        <input placeholder="Nome" value={safeStr(dados.proprietario?.nome)} onChange={e=>up('nome', e.target.value, true)} className="w-full border p-2 rounded-lg font-bold text-sm mb-2 outline-none focus:border-[#84cc16]"/>
-                        <input placeholder="WhatsApp" value={safeStr(dados.proprietario?.telefone)} onChange={e=>up('telefone', e.target.value, true)} className="w-full border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#84cc16]"/>
+                    <label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">Valor (R$)</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} className="w-full border p-3 rounded-xl font-bold text-green-600 outline-none focus:border-[#84cc16]"/></label>
+                    <label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">Data (DD/MM/AAAA)</span><input value={data} onChange={e=>setData(e.target.value)} className="w-full border p-3 rounded-xl font-bold outline-none focus:border-[#84cc16]"/></label>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-dashed border-slate-200 text-center">
+                        <label className="cursor-pointer text-xs font-bold text-slate-500 flex flex-col items-center gap-2 hover:text-[#84cc16] transition">
+                            {loading ? <RefreshCw className="animate-spin text-slate-400" size={24}/> : (url ? <CheckCircle className="text-green-500" size={24}/> : <Upload className="text-slate-400" size={24}/>)}
+                            {url ? 'Comprovante Anexado!' : 'Anexar Comprovante (Opcional)'}
+                            <input type="file" className="hidden" accept="image/*,.pdf" onChange={handleUpload}/>
+                        </label>
                     </div>
-                    <label className="flex items-center gap-3 p-3 bg-white border rounded-xl cursor-pointer shadow-sm"><input type="checkbox" checked={moraProp} onChange={e=>setMoraProp(e.target.checked)} className="accent-[#84cc16] w-5 h-5 rounded"/> <span className="text-xs font-bold text-slate-600">O proprietário reside no imóvel?</span></label>
-                    {!moraProp && (
-                        <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 text-left animate-in fade-in">
-                             <p className="text-[10px] font-black text-blue-900 uppercase mb-2 tracking-widest opacity-50 text-left">Inquilino (Morador Atual)</p>
-                             <input placeholder="Nome" value={safeStr(dados.inquilino?.nome)} onChange={e=>up('nome', e.target.value, false)} className="w-full border p-2 rounded-lg font-bold text-sm mb-2 outline-none focus:border-blue-400"/>
-                             <input placeholder="WhatsApp" value={safeStr(dados.inquilino?.telefone)} onChange={e=>up('telefone', e.target.value, false)} className="w-full border p-2 rounded-lg font-bold text-sm outline-none focus:border-blue-400"/>
+                </div>
+                <div className="flex gap-3 mt-6">
+                    <button onClick={onClose} className="flex-1 py-3 text-slate-500 font-bold bg-slate-100 rounded-xl hover:bg-slate-200">Cancelar</button>
+                    <button onClick={() => onConfirm(Number(valor), data, url)} className="flex-1 py-3 text-white font-black bg-[#1e293b] rounded-xl hover:bg-black shadow-lg">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ModalDetalhesUnidade({ dados, onClose, onAdd, onDelete, fmt, enviarRecibo, supabase, setModalReciboVisual, onUpdatePagamento }) {
+    const { u, mes, ano, pags, totalPago, valorDevido } = dados;
+    const isPago = totalPago >= valorDevido;
+
+    const handleUploadExistente = async (e, pid) => {
+        try {
+            const file = e.target.files[0];
+            if(!file) return;
+            const nome = `pgto_upd_${Date.now()}.${file.name.split('.').pop()}`;
+            await supabase.storage.from('comprovantes').upload(nome, file);
+            const { data: pubData } = supabase.storage.from('comprovantes').getPublicUrl(nome);
+            onUpdatePagamento(pid, pubData.publicUrl);
+        } catch(err) { console.error(err); }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-in slide-in-from-bottom-10 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center mb-6 border-b pb-4">
+                    <div>
+                        <h3 className="font-black text-xl text-slate-800">Apto {u.numero}</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">{mes}/{ano}</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button>
+                </div>
+                
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-4 flex justify-between items-center">
+                    <div><p className="text-[10px] font-black text-slate-400 uppercase">Total Pago</p><p className={`text-2xl font-black ${isPago ? 'text-[#84cc16]' : 'text-yellow-600'}`}>{fmt(totalPago)}</p></div>
+                    <div className="text-right"><p className="text-[10px] font-black text-slate-400 uppercase">Fatura</p><p className="text-lg font-bold text-slate-600">{fmt(valorDevido)}</p></div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-3 pr-2 mb-4">
+                    <p className="text-[10px] font-black text-slate-400 uppercase border-b pb-1">Histórico deste Mês</p>
+                    {pags.map(p => (
+                        <div key={p.id} className="bg-white border border-slate-200 p-3 rounded-xl flex justify-between items-center shadow-sm">
+                            <div><p className="font-black text-slate-800">{fmt(p.valor)}</p><p className="text-[9px] font-bold text-slate-400 uppercase">{p.data}</p></div>
+                            <div className="flex gap-2">
+                                {p.url_comprovante ? (
+                                    <a href={p.url_comprovante} target="_blank" rel="noopener noreferrer" className="p-2 bg-blue-50 text-blue-500 rounded-lg hover:bg-blue-100"><Paperclip size={14}/></a>
+                                ) : (
+                                    <label className="p-2 bg-slate-100 text-slate-400 rounded-lg hover:bg-slate-200 cursor-pointer"><Upload size={14}/><input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => handleUploadExistente(e, p.id)}/></label>
+                                )}
+                                <button onClick={() => {onClose(); setModalReciboVisual({pagamento: p, unidade: u});}} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200"><Receipt size={14}/></button>
+                                <button onClick={() => enviarRecibo(p, u)} className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100"><Share2 size={14}/></button>
+                                <button onClick={() => onDelete(p.id)} className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100"><Trash2 size={14}/></button>
+                            </div>
+                        </div>
+                    ))}
+                    {pags.length === 0 && <p className="text-center text-xs text-slate-400 py-4 italic">Nenhum pagamento registrado.</p>}
+                </div>
+
+                {!isPago && (
+                    <button onClick={() => {
+                        const val = prompt("Valor recebido:");
+                        const dat = prompt("Data (DD/MM/AAAA):", new Date().toLocaleDateString('pt-BR'));
+                        if(val && dat) onAdd(Number(val), dat, null);
+                    }} className="w-full bg-[#1e293b] text-white py-4 rounded-xl font-black text-xs hover:bg-black shadow-lg flex justify-center items-center gap-2"><PlusCircle size={16}/> ADICIONAR NOVO PAGAMENTO</button>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function ModalReciboVisual({ pagamento, unidade, config, onClose, fmt, enviarWhatsApp }) {
+    return (
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="w-full max-w-sm relative">
+                <button onClick={onClose} className="absolute -top-12 right-0 text-white hover:text-red-400 transition"><X size={32}/></button>
+                <div className="bg-white rounded-[24px] p-8 shadow-2xl relative overflow-hidden font-mono border-t-[16px] border-[#1e293b]" id="recibo-pdf">
+                    <div className="absolute top-0 right-8 w-8 h-8 bg-white rounded-b-full -mt-4 shadow-inner"></div>
+                    <div className="absolute top-0 left-8 w-8 h-8 bg-white rounded-b-full -mt-4 shadow-inner"></div>
+                    
+                    <div className="text-center mb-6">
+                        <Logo variant="simple" width="w-24" className="mx-auto mb-2 grayscale opacity-50"/>
+                        <h2 className="text-sm font-black text-slate-800 uppercase tracking-widest">Recibo de Pagamento</h2>
+                    </div>
+
+                    <div className="space-y-4 text-xs font-bold text-slate-600 border-y-2 border-dashed border-slate-200 py-6 my-6">
+                        <div className="flex justify-between"><span className="text-slate-400">Condomínio:</span> <span className="text-right">{config.predioNome}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Unidade:</span> <span className="text-right text-sm text-[#1e293b] font-black">Apto {unidade.numero}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Data Pagto:</span> <span className="text-right">{pagamento.data}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Referência:</span> <span className="text-right">{pagamento.mes}/{pagamento.ano}</span></div>
+                        <div className="flex justify-between mt-4 pt-4 border-t border-slate-100 items-end">
+                            <span className="text-slate-400 uppercase">Valor Pago</span>
+                            <span className="text-2xl font-black text-green-600">{fmt(pagamento.valor)}</span>
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-50 p-3 rounded-lg text-center break-all">
+                        <p className="text-[8px] text-slate-400 uppercase tracking-widest mb-1">Chave de Autenticidade</p>
+                        <p className="text-xs font-black text-slate-700">{pagamento.hash_recibo || 'GERADO-MANUALMENTE'}</p>
+                    </div>
+                </div>
+                <button onClick={() => enviarWhatsApp(pagamento, unidade)} className="w-full bg-[#84cc16] text-[#1e293b] py-4 rounded-xl mt-4 font-black text-xs hover:bg-[#a3e635] shadow-lg flex justify-center items-center gap-2"><Share2 size={16}/> COMPARTILHAR NO WHATSAPP</button>
+            </div>
+        </div>
+    );
+}
+
+function ModalDespesa({ supabase, categorias, onClose, onSave, despesaParaEditar = null }) {
+    const isEdit = !!despesaParaEditar;
+    const [form, setForm] = useState(despesaParaEditar || { descricao: '', valor: '', data: new Date().toISOString().split('T')[0], categoria: categorias[0], pago: true, repetir: false, url_comprovante: '' });
+    const [loadingUpload, setLoadingUpload] = useState(false);
+
+    const handleUpload = async (e) => {
+        try {
+            setLoadingUpload(true);
+            const file = e.target.files[0];
+            if(!file) return;
+            const nome = `desp_${Date.now()}.${file.name.split('.').pop()}`;
+            await supabase.storage.from('comprovantes').upload(nome, file);
+            const { data } = supabase.storage.from('comprovantes').getPublicUrl(nome);
+            setForm({...form, url_comprovante: data.publicUrl});
+        } catch(err) { console.error(err); } finally { setLoadingUpload(false); }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-in slide-in-from-bottom-10 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="font-black text-xl text-slate-800 flex items-center gap-2"><ArrowDownCircle className="text-orange-500"/> {isEdit ? 'Editar Conta' : 'Lançar Conta'}</h3><button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button></div>
+                <div className="overflow-y-auto pr-2 space-y-4 mb-4">
+                    <label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">Descrição</span><input value={form.descricao} onChange={e=>setForm({...form, descricao:e.target.value})} className="w-full border p-3 rounded-xl font-bold outline-none focus:border-orange-500" placeholder="Ex: Conta de Luz"/></label>
+                    <div className="flex gap-3">
+                        <label className="block flex-1"><span className="text-[10px] font-black text-slate-400 uppercase">Valor (R$)</span><input type="number" value={form.valor} onChange={e=>setForm({...form, valor:Number(e.target.value)})} className="w-full border p-3 rounded-xl font-black text-orange-600 outline-none focus:border-orange-500"/></label>
+                        <label className="block flex-1"><span className="text-[10px] font-black text-slate-400 uppercase">Vencimento</span><input type="date" value={form.data} onChange={e=>setForm({...form, data:e.target.value})} className="w-full border p-3 rounded-xl font-bold outline-none focus:border-orange-500"/></label>
+                    </div>
+                    <label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">Categoria</span><select value={form.categoria} onChange={e=>setForm({...form, categoria:e.target.value})} className="w-full border p-3 rounded-xl font-bold bg-white outline-none focus:border-orange-500">{categorias.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
+                    
+                    <div className="bg-slate-50 p-4 rounded-xl border border-dashed border-slate-200">
+                        <label className="cursor-pointer text-xs font-bold text-slate-500 flex items-center justify-center gap-2 hover:text-orange-500 transition">
+                            {loadingUpload ? <RefreshCw className="animate-spin text-slate-400" size={16}/> : (form.url_comprovante ? <CheckCircle className="text-green-500" size={16}/> : <Upload className="text-slate-400" size={16}/>)}
+                            {form.url_comprovante ? 'Nota Fiscal Anexada' : 'Anexar Nota/Boleto'}
+                            <input type="file" className="hidden" accept="image/*,.pdf" onChange={handleUpload}/>
+                        </label>
+                    </div>
+
+                    <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer bg-slate-50 p-3 rounded-xl flex-1 border"><input type="checkbox" checked={form.pago} onChange={e=>setForm({...form, pago:e.target.checked})} className="accent-orange-500 w-4 h-4"/><span className="text-xs font-bold text-slate-700">Conta Paga</span></label>
+                        {!isEdit && <label className="flex items-center gap-2 cursor-pointer bg-slate-50 p-3 rounded-xl flex-1 border"><input type="checkbox" checked={form.repetir} onChange={e=>setForm({...form, repetir:e.target.checked})} className="accent-orange-500 w-4 h-4"/><span className="text-xs font-bold text-slate-700">Lançar fixo</span></label>}
+                    </div>
+                </div>
+                <button onClick={() => onSave(form, form.repetir)} className="w-full py-4 text-white font-black bg-orange-500 rounded-xl hover:bg-orange-600 shadow-lg">{isEdit ? 'SALVAR ALTERAÇÕES' : 'SALVAR DESPESA'}</button>
+            </div>
+        </div>
+    );
+}
+
+function ModalEditarUnidade({ u, onClose, onSave, ativarModoMorador, config, cId }) {
+    const [form, setForm] = useState(u);
+    const linkAcesso = `${window.location.origin}?invite=${u.numero}&c=${cId}`;
+    return (
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-in slide-in-from-bottom-10 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="font-black text-xl text-slate-800">Editar Apto {u.numero}</h3><button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button></div>
+                <div className="overflow-y-auto pr-2 space-y-4 mb-4">
+                    <div className="bg-slate-50 p-4 rounded-2xl border">
+                        <p className="text-[10px] font-black text-slate-400 uppercase mb-3">Dados do Proprietário</p>
+                        <input value={form.proprietario?.nome || ''} onChange={e=>setForm({...form, proprietario:{...form.proprietario, nome:e.target.value}})} className="w-full border p-3 rounded-xl font-bold mb-2 text-sm" placeholder="Nome Completo"/>
+                        <input value={maskPhone(form.proprietario?.telefone || '')} onChange={e=>setForm({...form, proprietario:{...form.proprietario, telefone:e.target.value}})} className="w-full border p-3 rounded-xl font-bold text-sm" placeholder="WhatsApp (11) 99999-9999"/>
+                    </div>
+                    <label className="flex items-center gap-3 cursor-pointer bg-slate-100 p-4 rounded-xl border border-slate-200"><input type="checkbox" checked={form.mora_proprietario !== false} onChange={e=>setForm({...form, mora_proprietario:e.target.checked})} className="accent-[#84cc16] w-5 h-5"/><span className="text-sm font-bold text-slate-700">Proprietário mora no imóvel</span></label>
+                    {form.mora_proprietario === false && (
+                        <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100">
+                            <p className="text-[10px] font-black text-orange-400 uppercase mb-3">Dados do Inquilino</p>
+                            <input value={form.inquilino?.nome || ''} onChange={e=>setForm({...form, inquilino:{...form.inquilino, nome:e.target.value}})} className="w-full border p-3 rounded-xl font-bold mb-2 text-sm" placeholder="Nome do Inquilino"/>
+                            <input value={maskPhone(form.inquilino?.telefone || '')} onChange={e=>setForm({...form, inquilino:{...form.inquilino, telefone:e.target.value}})} className="w-full border p-3 rounded-xl font-bold text-sm" placeholder="WhatsApp (11) 99999-9999"/>
                         </div>
                     )}
-                    <button onClick={ativarModoMorador} className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:bg-blue-100 transition"><Eye size={16}/> Ver como Morador</button>
-                    {!dados.linked_user_id ? ( <button onClick={gerarLinkConvite} className="w-full bg-[#84cc16] text-[#1e293b] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-lg hover:bg-[#a3e635] transition"><Link2 size={16}/> CONVITE DE ACESSO</button> ) : ( <button onClick={() => onSave({ ...dados, linked_user_id: null })} className="w-full py-3 border border-red-200 text-red-500 rounded-xl font-black text-xs hover:bg-red-50">REMOVER ACESSO DO APP</button> )}
-                    <div className="flex gap-3 pt-2"><button onClick={() => onSave(dados)} className="flex-1 bg-[#1e293b] text-white py-4 rounded-2xl font-black shadow-xl transition active:scale-95">SALVAR</button></div>
+
+                    <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl">
+                        <p className="text-[10px] font-black text-blue-500 uppercase mb-2 flex items-center gap-1"><LinkIcon size={12}/> Link de Acesso do Morador</p>
+                        <div className="flex gap-2">
+                            <input readOnly value={linkAcesso} className="w-full bg-white border border-blue-200 p-2 rounded-lg text-xs text-slate-500"/>
+                            <button onClick={() => { navigator.clipboard.writeText(linkAcesso); alert("Link copiado!"); }} className="bg-blue-500 text-white p-2 rounded-lg"><Copy size={16}/></button>
+                        </div>
+                    </div>
                 </div>
-                <button onClick={onClose} className="w-full mt-4 text-slate-400 font-bold text-xs uppercase">Cancelar</button>
+                <div className="grid grid-cols-2 gap-3 pt-4 border-t shrink-0">
+                    <button onClick={ativarModoMorador} className="col-span-2 py-3 text-slate-500 font-bold bg-slate-100 rounded-xl hover:bg-slate-200 text-xs flex items-center justify-center gap-2"><Smartphone size={14}/> SIMULAR VISÃO DESTE MORADOR</button>
+                    <button onClick={onClose} className="py-4 text-slate-500 font-bold bg-white border border-slate-200 rounded-xl hover:bg-slate-50">Cancelar</button>
+                    <button onClick={() => onSave(form)} className="py-4 text-white font-black bg-[#1e293b] rounded-xl hover:bg-black shadow-lg">Salvar</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ModalRelatorio({ receita, despesa, saldo, despesas, mes, ano, onClose, fmt, exportarCSV }) {
+    return (
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-in slide-in-from-bottom-10 max-h-[90vh] flex flex-col">
+                <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="font-black text-xl text-slate-800 flex items-center gap-2"><FileBarChart className="text-[#84cc16]"/> Relatório {mes}</h3><button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button></div>
+                <div className="flex-1 overflow-y-auto space-y-4 pr-2 pb-4">
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-green-50 p-4 rounded-2xl border border-green-100"><p className="text-[10px] font-black text-green-600 uppercase">Receitas Mês</p><p className="text-xl font-black text-green-700">{fmt(receita)}</p></div>
+                        <div className="bg-red-50 p-4 rounded-2xl border border-red-100"><p className="text-[10px] font-black text-red-600 uppercase">Despesas Mês</p><p className="text-xl font-black text-red-700">-{fmt(despesa)}</p></div>
+                        <div className="col-span-2 bg-[#1e293b] p-4 rounded-2xl text-white mt-2"><p className="text-[10px] font-black text-slate-400 uppercase">Saldo em Caixa (Final do Mês)</p><p className="text-3xl font-black">{fmt(saldo)}</p></div>
+                    </div>
+                    <div className="pt-4 border-t border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase mb-3">Detalhamento de Despesas</p>
+                        {despesas.map(d => (
+                            <div key={d.id} className="flex justify-between items-center border-b border-slate-50 py-2 text-xs">
+                                <span className="font-bold text-slate-600">{d.descricao} <span className="text-[9px] text-slate-400 font-normal ml-1">({d.categoria})</span></span>
+                                <span className="font-black text-red-500">-{fmt(d.valor)}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                <div className="pt-4 border-t shrink-0"><button onClick={exportarCSV} className="w-full bg-[#1e293b] text-white py-4 rounded-xl font-black text-xs hover:bg-black transition flex justify-center items-center gap-2"><FileSpreadsheet size={16}/> EXPORTAR PARA EXCEL (CSV)</button></div>
+            </div>
+        </div>
+    );
+}
+
+function ModalManutencao({ lista, onClose, onToggle, onDelete }) {
+    return (
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-in slide-in-from-bottom-10 max-h-[90vh] flex flex-col">
+                <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="font-black text-xl text-slate-800 flex items-center gap-2"><Wrench className="text-slate-500"/> Manutenção</h3><button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button></div>
+                <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4">
+                    {lista.map(z => (
+                        <div key={z.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3">
+                            <button onClick={() => onToggle(z.id, !z.concluido)} className={`shrink-0 mt-0.5 ${z.concluido ? 'text-green-500' : 'text-slate-300'}`}>{z.concluido ? <CheckCircle size={24}/> : <div className="w-6 h-6 border-2 border-slate-300 rounded-full"></div>}</button>
+                            <div className="flex-1">
+                                <p className={`text-sm font-bold ${z.concluido ? 'line-through text-slate-400' : 'text-slate-800'}`}>{z.item}</p>
+                                <div className="flex gap-2 mt-2 items-center">
+                                    <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-200/50 px-2 py-0.5 rounded">{z.data}</span>
+                                    {z.relator && <span className="text-[9px] font-black text-orange-500 uppercase bg-orange-50 px-2 py-0.5 rounded border border-orange-100">Aberto por: {z.relator}</span>}
+                                    {z.url_foto && <a href={z.url_foto} target="_blank" rel="noopener noreferrer" className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-100"><ImageIcon size={10}/> Ver Foto</a>}
+                                </div>
+                            </div>
+                            <button onClick={() => onDelete(z.id)} className="text-slate-300 hover:text-red-500 p-2"><Trash2 size={16}/></button>
+                        </div>
+                    ))}
+                    {lista.length === 0 && <EmptyState icon={CheckSquare} title="Tudo OK!" desc="Nenhuma manutenção pendente." />}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ModalAvisos({ lista, onClose, onSave, onDelete }) {
+    const [form, setForm] = useState({ titulo: '', mensagem: '', tipo: 'Aviso', data: new Date().toLocaleDateString('pt-BR') });
+    return (
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-in slide-in-from-bottom-10 max-h-[90vh] flex flex-col">
+                <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="font-black text-xl text-slate-800 flex items-center gap-2"><Megaphone className="text-orange-500"/> Mural de Avisos</h3><button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button></div>
+                <div className="flex-1 overflow-y-auto space-y-4 pr-2 pb-4">
+                    <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100 space-y-3">
+                        <input value={form.titulo} onChange={e=>setForm({...form, titulo:e.target.value})} className="w-full border-none p-3 rounded-xl font-black text-sm outline-none" placeholder="Título do Aviso"/>
+                        <textarea value={form.mensagem} onChange={e=>setForm({...form, mensagem:e.target.value})} className="w-full border-none p-3 rounded-xl font-bold text-xs outline-none h-20" placeholder="Mensagem para os moradores..."/>
+                        <div className="flex gap-2">
+                            <select value={form.tipo} onChange={e=>setForm({...form, tipo:e.target.value})} className="flex-1 border-none p-3 rounded-xl font-bold text-xs outline-none text-slate-600"><option value="Aviso">Aviso Comum</option><option value="Urgente">🚨 Urgente</option><option value="Regra">📜 Regra/Norma</option></select>
+                            <button onClick={() => { if(form.titulo && form.mensagem) { onSave(form); setForm({titulo:'', mensagem:'', tipo:'Aviso', data: new Date().toLocaleDateString('pt-BR')}); } }} className="bg-orange-500 text-white px-4 rounded-xl font-black text-xs hover:bg-orange-600 transition"><Send size={16}/></button>
+                        </div>
+                    </div>
+                    <div className="space-y-3">
+                        {lista.map(a => (
+                            <div key={a.id} className="p-4 bg-white border border-slate-200 rounded-2xl relative shadow-sm">
+                                <button onClick={() => onDelete(a.id)} className="absolute top-2 right-2 text-slate-300 hover:text-red-500 p-2"><Trash2 size={14}/></button>
+                                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded mb-2 inline-block ${a.tipo==='Urgente'?'bg-red-100 text-red-600':(a.tipo==='Regra'?'bg-purple-100 text-purple-600':'bg-blue-100 text-blue-600')}`}>{a.tipo}</span>
+                                <p className="font-black text-slate-800 text-sm">{a.titulo}</p>
+                                <p className="text-xs text-slate-500 mt-1 line-clamp-2">{a.mensagem}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ModalEnquete({ lista, onClose, onSave, onDelete, unidadesTotal }) {
+    const [form, setForm] = useState({ titulo: '', descricao: '', ativa: true, opcoes: { sim: 0, nao: 0 } });
+    return (
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-in slide-in-from-bottom-10 max-h-[90vh] flex flex-col">
+                <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="font-black text-xl text-slate-800 flex items-center gap-2"><Vote className="text-blue-500"/> Enquetes</h3><button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button></div>
+                <div className="flex-1 overflow-y-auto space-y-4 pr-2 pb-4">
+                    <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-3">
+                        <input value={form.titulo} onChange={e=>setForm({...form, titulo:e.target.value})} className="w-full border-none p-3 rounded-xl font-black text-sm outline-none" placeholder="Pergunta da Enquete?"/>
+                        <button onClick={() => { if(form.titulo) { onSave(form); setForm({titulo:'', descricao:'', ativa:true, opcoes:{sim:0,nao:0}}); } }} className="w-full bg-blue-500 text-white py-3 rounded-xl font-black text-xs hover:bg-blue-600 transition flex items-center justify-center gap-2"><PlusCircle size={14}/> INICIAR VOTAÇÃO (SIM / NÃO)</button>
+                    </div>
+                    <div className="space-y-3">
+                        {lista.map(e => {
+                            const total = (e.opcoes?.sim||0) + (e.opcoes?.nao||0);
+                            return (
+                            <div key={e.id} className="p-4 bg-white border border-slate-200 rounded-2xl relative shadow-sm">
+                                <button onClick={() => onDelete(e.id)} className="absolute top-2 right-2 text-slate-300 hover:text-red-500 p-2"><Trash2 size={14}/></button>
+                                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded mb-2 inline-block ${e.ativa?'bg-green-100 text-green-600':'bg-slate-100 text-slate-500'}`}>{e.ativa ? 'ABERTA' : 'ENCERRADA'}</span>
+                                <p className="font-black text-slate-800 text-sm mb-3 pr-6">{e.titulo}</p>
+                                <div className="flex gap-2">
+                                    <div className="flex-1 bg-green-50 p-2 rounded-lg text-center"><p className="text-[10px] font-bold text-green-600">SIM</p><p className="font-black text-green-700">{e.opcoes?.sim||0}</p></div>
+                                    <div className="flex-1 bg-red-50 p-2 rounded-lg text-center"><p className="text-[10px] font-bold text-red-600">NÃO</p><p className="font-black text-red-700">{e.opcoes?.nao||0}</p></div>
+                                </div>
+                            </div>
+                        )})}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ModalTelefonesUteis({ config, setConfig, onClose, setPrintMode }) {
+    const [lista, setLista] = useState(config.telefonesUteis || INFO_UTEIS_PADRAO);
+    return (
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-in slide-in-from-bottom-10 max-h-[90vh] flex flex-col">
+                <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="font-black text-xl text-slate-800 flex items-center gap-2"><Contact className="text-teal-500"/> Telefones & Info</h3><button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button></div>
+                <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4">
+                    {lista.map((t, i) => (
+                        <div key={t.id || i} className="flex gap-2 items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <input value={t.nome} onChange={e => { const nv = [...lista]; nv[i].nome = e.target.value; setLista(nv); }} className="flex-1 bg-transparent font-black text-sm outline-none text-slate-700" placeholder="Nome/Serviço"/>
+                            <input value={t.numero} onChange={e => { const nv = [...lista]; nv[i].numero = e.target.value; setLista(nv); }} className="flex-1 bg-transparent font-bold text-xs outline-none text-slate-500 text-right" placeholder="Número/Senha"/>
+                            <button onClick={() => setLista(lista.filter((_, idx) => idx !== i))} className="text-slate-300 hover:text-red-500 p-1"><X size={16}/></button>
+                        </div>
+                    ))}
+                    <button onClick={() => setLista([...lista, {id: generateId(), nome: '', numero: ''}])} className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-50 flex justify-center items-center gap-2"><PlusCircle size={14}/> ADICIONAR LINHA</button>
+                </div>
+                <div className="pt-4 border-t flex flex-col gap-2 shrink-0">
+                    <button onClick={() => { setConfig({...config, telefonesUteis: lista}); onClose(); }} className="w-full bg-[#1e293b] text-white py-4 rounded-xl font-black text-xs hover:bg-black transition shadow-lg">SALVAR INFORMAÇÕES</button>
+                    <button onClick={() => { onClose(); setPrintMode('cartaz'); }} className="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-black text-[10px] hover:bg-slate-200 transition flex items-center justify-center gap-2"><Printer size={14}/> IMPRIMIR CARTAZ P/ ELEVADOR</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ModalFilaAprovacao({ fila, onClose, processarAprovacao }) {
+    return (
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-in slide-in-from-bottom-10 max-h-[90vh] flex flex-col">
+                <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="font-black text-xl text-slate-800 flex items-center gap-2"><UserPlus className="text-purple-500"/> Novos Moradores</h3><button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button></div>
+                <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4">
+                    {fila && fila.length > 0 ? fila.map(f => (
+                        <div key={f.id} className="bg-purple-50 border border-purple-100 p-4 rounded-2xl flex flex-col gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-white text-purple-600 w-12 h-12 rounded-xl font-black flex items-center justify-center text-lg shadow-sm border border-purple-100 shrink-0">{f.numero}</div>
+                                <div><p className="font-black text-slate-800 text-sm">{f.email}</p><p className="text-[10px] font-bold text-slate-500 uppercase">Solicitou em {f.data}</p></div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => processarAprovacao(f, false)} className="flex-1 py-2 bg-white text-red-500 border border-red-200 rounded-lg text-[10px] font-black hover:bg-red-50 transition">REJEITAR</button>
+                                <button onClick={() => processarAprovacao(f, true)} className="flex-1 py-2 bg-purple-600 text-white rounded-lg text-[10px] font-black hover:bg-purple-700 transition shadow-md">APROVAR ACESSO</button>
+                            </div>
+                        </div>
+                    )) : <EmptyState icon={UserCheck} title="Nenhum Pedido" desc="Todos os moradores já foram aprovados." />}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// --- MODAL CONFIGURAÇÃO (SÍNDICO) ---
+function ModalConfiguracoes({ config, setConfig, onClose, triggerConfirm, resetar, showToast, exportarBackup, supabase }) { 
+    const [local, setLocal] = useState({...config}); 
+    const [activeTab, setActiveTab] = useState('geral'); 
+    const [bloqueado, setBloqueado] = useState(true); 
+    const [novaSenha, setNovaSenha] = useState('');
+    const [loadingSenha, setLoadingSenha] = useState(false);
+    
+    const alterarSenha = async () => {
+        if (novaSenha.length < 6) return showToast("A senha deve ter pelo menos 6 caracteres.", "error");
+        setLoadingSenha(true);
+        try {
+            const { error } = await supabase.auth.updateUser({ password: novaSenha });
+            if (error) throw error;
+            showToast("Senha alterada com sucesso!");
+            setNovaSenha('');
+        } catch (err) {
+            showToast(err.message, "error");
+        } finally {
+            setLoadingSenha(false);
+        }
+    };
+
+    return ( 
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm text-left">
+            <div className="bg-white rounded-[32px] w-full max-w-2xl p-0 shadow-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in duration-300">
+                <div className="bg-[#1e293b] p-6 text-white text-center">
+                    <h3 className="font-black text-xl tracking-tighter mb-4">Ajustes & Sistema</h3>
+                    <div className="flex gap-1 justify-center bg-black/20 p-1 rounded-xl overflow-x-auto">
+                        <button onClick={() => setActiveTab('geral')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase ${activeTab === 'geral' ? 'bg-[#84cc16] text-[#1e293b]' : 'text-slate-400'}`}>Condomínio</button>
+                        <button onClick={() => setActiveTab('perfil')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase ${activeTab === 'perfil' ? 'bg-[#84cc16] text-[#1e293b]' : 'text-slate-400'}`}>Meu Perfil</button>
+                        <button onClick={() => setActiveTab('sistema')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase ${activeTab === 'sistema' ? 'bg-[#84cc16] text-[#1e293b]' : 'text-slate-400'}`}>Sistema & Dados</button>
+                    </div>
+                </div>
+                <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-white">
+                    {activeTab === 'geral' && (
+                        <div className="space-y-6">
+                            <div className="bg-slate-50 p-5 rounded-2xl border">
+                                <button onClick={() => setBloqueado(!bloqueado)} className="mb-4 text-[9px] font-black border px-3 py-1.5 rounded-lg bg-white shadow-sm hover:bg-slate-100 transition flex items-center gap-2"><LockKeyhole size={12}/> EDITAR DADOS BASE</button>
+                                <div className={`space-y-4 ${bloqueado ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    <label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">Nome do Prédio</span><input value={local.predioNome} onChange={e=>setLocal({...local, predioNome:e.target.value})} className="w-full border p-3 rounded-xl"/></label>
+                                    <label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">Mensalidade (R$)</span><input type="number" value={local.valorCondominio} onChange={e=>setLocal({...local, valorCondominio:Number(e.target.value)})} className="w-full border p-3 rounded-xl"/></label>
+                                    <label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">Chave PIX Oficial</span><input value={local.chavePix} onChange={e=>setLocal({...local, chavePix:e.target.value})} className="w-full border p-3 rounded-xl"/></label>
+                                    <label className="block"><span className="text-[10px] font-black text-slate-400 uppercase">Início Operação (Mês/Ano)</span><input type="month" value={local.inicioOperacao || ''} onChange={e=>setLocal({...local, inicioOperacao:e.target.value})} className="w-full border p-3 rounded-xl text-sm font-bold"/></label>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {activeTab === 'perfil' && (
+                        <div className="space-y-4">
+                            <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl">
+                                <h4 className="font-black text-slate-800 text-sm mb-4 flex items-center gap-2"><KeyRound size={16} className="text-orange-500"/> Alterar Minha Senha</h4>
+                                <label className="block mb-3">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase">Nova Senha</span>
+                                    <input type="password" value={novaSenha} onChange={e=>setNovaSenha(e.target.value)} className="w-full border border-slate-200 p-3 rounded-xl text-sm font-bold outline-none focus:border-[#84cc16] mt-1" placeholder="Mínimo de 6 caracteres"/>
+                                </label>
+                                <button onClick={alterarSenha} disabled={loadingSenha || novaSenha.length < 6} className="bg-[#1e293b] text-white py-3 px-6 rounded-xl font-black text-xs hover:bg-black transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
+                                    {loadingSenha ? <RefreshCw className="animate-spin" size={14}/> : <Save size={14}/>} SALVAR NOVA SENHA
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                    {activeTab === 'sistema' && (
+                        <div className="space-y-4">
+                            <div className="bg-blue-50 border border-blue-100 p-5 rounded-2xl text-left">
+                                <h4 className="text-blue-800 font-black text-sm mb-2 flex items-center gap-2"><Database size={16}/> Cópia de Segurança</h4>
+                                <p className="text-xs text-blue-600 mb-4 font-medium">Baixe um arquivo JSON com todos os dados atuais do seu condomínio (apartamentos, transações, avisos) para segurança externa.</p>
+                                <button onClick={exportarBackup} className="w-full bg-blue-500 text-white py-3 rounded-xl font-black text-xs shadow-lg hover:bg-blue-600 transition flex items-center justify-center gap-2"><Download size={14}/> EXPORTAR BACKUP</button>
+                            </div>
+
+                            <div className="pt-6 mt-6 border-t border-slate-100 text-center">
+                                <h4 className="text-red-600 font-black text-xs mb-2 uppercase">Zona de Perigo</h4>
+                                <button onClick={() => triggerConfirm({ titulo: "Resetar Tudo?", texto: "Isso apagará TODOS os dados do prédio irrevogavelmente, não tem como recuperar.", onConfirm: () => { resetar(); triggerConfirm(null); } })} className="w-full py-4 bg-red-50 text-red-500 font-black text-xs hover:bg-red-100 rounded-xl border border-red-200 transition">LIMPAR CONDOMÍNIO (RESET TOTAL)</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <div className="p-6 bg-slate-50 border-t flex gap-3 shrink-0">
+                    <button onClick={onClose} className="flex-1 py-4 text-slate-400 font-bold text-xs uppercase hover:text-slate-600 transition">Cancelar</button>
+                    {activeTab === 'geral' && (
+                        <button onClick={() => { setConfig(local); onClose(); }} className="flex-1 bg-[#84cc16] text-[#1e293b] rounded-2xl font-black text-xs shadow-xl active:scale-95">SALVAR MUDANÇAS</button>
+                    )}
+                </div>
             </div>
         </div>
     ); 
 }
 
-function ModalRelatorio({ receita, despesa, saldo, despesas, unidades, pagamentos, mes, ano, config, onClose, fmt }) {
-    // PRESTAÇÃO DE CONTAS - LÓGICA DE PREVISÃO
-    // Mostra TODOS os apartamentos. Se pagou, mostra data e verde. Se não, mostra pendente e vermelho.
-    const listaCompletaPagamentos = useMemo(() => {
-        return unidades.map(u => {
-            const pagou = pagamentos.find(p => p.unidade_id === u.id && p.mes === mes && String(p.ano) === String(ano));
-            return {
-                numero: u.numero,
-                data: pagou ? pagou.data : '-',
-                valor: pagou ? pagou.valor : 0,
-                status: pagou ? 'ok' : 'pendente'
-            };
-        }).sort((a,b) => a.numero.localeCompare(b.numero, undefined, {numeric: true}));
-    }, [unidades, pagamentos, mes, ano]);
+// --- MODAL CONFIGURAÇÃO (MORADOR) ---
+function ModalConfiguracoesMorador({ onClose, showToast, supabase, onSair }) { 
+    const [novaSenha, setNovaSenha] = useState('');
+    const [loadingSenha, setLoadingSenha] = useState(false);
+    
+    const alterarSenha = async () => {
+        if (novaSenha.length < 6) return showToast("A senha deve ter pelo menos 6 caracteres.", "error");
+        setLoadingSenha(true);
+        try {
+            const { error } = await supabase.auth.updateUser({ password: novaSenha });
+            if (error) throw error;
+            showToast("Senha alterada com sucesso!");
+            setNovaSenha('');
+            onClose();
+        } catch (err) {
+            showToast(err.message, "error");
+        } finally {
+            setLoadingSenha(false);
+        }
+    };
 
-    return (
-        <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center p-4">
-            <div className="w-full max-w-2xl bg-white border border-slate-200 p-8 shadow-2xl h-[90vh] overflow-y-auto print:h-auto print:border-none print:shadow-none">
-                <div className="flex justify-between items-center mb-8 border-b pb-4">
-                    <div className="flex items-center gap-4"><Logo variant="simple" width="w-24"/><div className="h-8 w-px bg-slate-200"></div><div><h1 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Prestação de Contas</h1><p className="text-xs text-slate-500 font-bold">{config.predioNome} • {mes}/{ano}</p></div></div>
-                    <button onClick={onClose} className="bg-slate-100 p-2 rounded-full no-print"><X size={20}/></button>
+    return ( 
+        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm text-left">
+            <div className="bg-white rounded-[32px] w-full max-w-sm p-6 shadow-2xl flex flex-col animate-in zoom-in duration-300">
+                <div className="flex justify-between items-center mb-6 border-b pb-4">
+                    <h3 className="font-black text-xl flex items-center gap-2 text-slate-800"><Settings size={24} className="text-slate-500"/> Minha Conta</h3>
+                    <button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition"><X size={20}/></button>
                 </div>
-                <div className="grid grid-cols-3 gap-4 mb-8">
-                    <div className="bg-slate-50 p-4 rounded-xl text-center border border-slate-100"><p className="text-[10px] uppercase font-black text-slate-400">Arrecadação</p><p className="text-xl font-black text-green-600">{fmt(receita)}</p></div>
-                    <div className="bg-slate-50 p-4 rounded-xl text-center border border-slate-100"><p className="text-[10px] uppercase font-black text-slate-400">Gastos</p><p className="text-xl font-black text-red-600">{fmt(despesa)}</p></div>
-                    <div className="bg-slate-50 p-4 rounded-xl text-center border border-slate-100"><p className="text-[10px] uppercase font-black text-slate-400">Saldo Final</p><p className="text-xl font-black text-slate-800">{fmt(saldo)}</p></div>
+                
+                <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl mb-6">
+                    <h4 className="font-black text-slate-800 text-sm mb-4 flex items-center gap-2"><KeyRound size={16} className="text-orange-500"/> Alterar Minha Senha</h4>
+                    <label className="block mb-3">
+                        <span className="text-[10px] font-black text-slate-400 uppercase">Nova Senha</span>
+                        <input type="password" value={novaSenha} onChange={e=>setNovaSenha(e.target.value)} className="w-full border border-slate-200 p-3 rounded-xl text-sm font-bold outline-none focus:border-[#84cc16] mt-1" placeholder="Mínimo de 6 caracteres"/>
+                    </label>
+                    <button onClick={alterarSenha} disabled={loadingSenha || novaSenha.length < 6} className="w-full bg-[#1e293b] text-white py-3 px-6 rounded-xl font-black text-xs hover:bg-black transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-md">
+                        {loadingSenha ? <RefreshCw className="animate-spin" size={14}/> : <Save size={14}/>} SALVAR NOVA SENHA
+                    </button>
                 </div>
 
-                <h3 className="font-black text-sm uppercase mb-4 border-b pb-2 flex items-center gap-2"><ArrowUpCircle size={16} className="text-green-500"/> Detalhamento de Receitas</h3>
-                <table className="w-full text-xs text-left mb-8">
-                    <thead><tr className="border-b bg-slate-50"><th className="py-2 pl-2 rounded-l-lg">Apto</th><th>Data Pagto</th><th className="text-right pr-2 rounded-r-lg">Valor</th></tr></thead>
-                    <tbody>
-                        {listaCompletaPagamentos.map((p,i) => (
-                            <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
-                                <td className="py-2 pl-2 font-black text-slate-800">{p.numero}</td>
-                                <td className={`py-2 font-bold ${p.status==='ok'?'text-green-600':'text-red-400'}`}>{p.status==='ok' ? p.data : 'PENDENTE'}</td>
-                                <td className="py-2 pr-2 text-right font-black text-slate-800">{p.status==='ok' ? fmt(p.valor) : '-'}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-
-                <h3 className="font-black text-sm uppercase mb-4 border-b pb-2 flex items-center gap-2"><ArrowDownCircle size={16} className="text-red-500"/> Detalhamento de Despesas</h3>
-                {despesas.length > 0 ? (
-                    <table className="w-full text-xs text-left">
-                        <thead><tr className="border-b bg-slate-50"><th className="py-2 pl-2 rounded-l-lg">Data</th><th>Descrição</th><th>Categoria</th><th className="text-right pr-2 rounded-r-lg">Valor</th></tr></thead>
-                        <tbody>
-                            {despesas.map((d,i) => (
-                                <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
-                                    <td className="py-2 pl-2 font-bold text-slate-500">{d.data}</td>
-                                    <td className="py-2 font-bold text-slate-800">{d.descricao} {d.pago === false && <span className="text-red-400 text-[9px] uppercase">(Pendente)</span>}</td>
-                                    <td className="py-2 text-slate-500"><span className="bg-slate-100 px-2 py-1 rounded text-[10px] uppercase font-black">{d.categoria}</span></td>
-                                    <td className="py-2 pr-2 text-right font-black text-slate-800">{fmt(d.valor)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                ) : <p className="text-xs text-slate-400 italic">Nenhuma despesa lançada.</p>}
-
-                <div className="mt-8 pt-8 border-t text-center no-print">
-                    <button onClick={() => window.print()} className="bg-[#1e293b] text-white px-6 py-3 rounded-xl font-black text-xs shadow-lg hover:bg-black transition flex items-center justify-center gap-2 mx-auto"><Printer size={16}/> IMPRIMIR RELATÓRIO</button>
-                </div>
+                <button onClick={onSair} className="w-full bg-red-50 text-red-500 py-4 rounded-xl font-black text-xs hover:bg-red-100 border border-red-200 transition flex items-center justify-center gap-2"><LogOut size={16}/> SAIR DO CONDOMÍNIO</button>
             </div>
         </div>
-    )
-}
-
-function ModalZeladoria({ lista, onClose, onSave, onDelete }) {
-    const [item, setItem] = useState('');
-    return (
-        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-[32px] w-full max-w-sm p-6 shadow-2xl h-[80vh] flex flex-col">
-                <div className="flex justify-between items-center mb-4"><h3 className="font-black text-xl flex items-center gap-2"><Hammer size={20}/> Zeladoria</h3><button onClick={onClose}><X size={20}/></button></div>
-                <div className="flex gap-2 mb-4"><input value={item} onChange={e=>setItem(e.target.value)} placeholder="Novo item de manutenção..." className="flex-1 border-2 border-slate-100 p-3 rounded-xl text-sm font-bold outline-none"/><button onClick={() => {if(item) {onSave({item, data: new Date().toLocaleDateString(), concluido: false}); setItem('')}}} className="bg-[#1e293b] text-white p-3 rounded-xl"><PlusCircle/></button></div>
-                <div className="flex-1 overflow-y-auto space-y-2">
-                    {lista.map(z => (
-                        <div key={z.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center">
-                            <span className="font-bold text-sm text-slate-700">{z.item}</span>
-                            <button onClick={()=>onDelete(z.id)} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
-                        </div>
-                    ))}
-                    {lista.length===0 && <p className="text-center text-slate-400 text-xs mt-10">Lista vazia.</p>}
-                </div>
-            </div>
-        </div>
-    )
-}
-
-function ModalAvisos({ lista, onClose, onSave, onDelete }) {
-    const [titulo, setTitulo] = useState(''); const [msg, setMsg] = useState('');
-    return (
-        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-[32px] w-full max-w-sm p-6 shadow-2xl h-[80vh] flex flex-col">
-                <div className="flex justify-between items-center mb-4"><h3 className="font-black text-xl flex items-center gap-2"><Megaphone size={20}/> Mural</h3><button onClick={onClose}><X size={20}/></button></div>
-                <div className="space-y-2 mb-4">
-                    <input value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Título do Aviso" className="w-full border-2 border-slate-100 p-3 rounded-xl text-sm font-bold outline-none"/>
-                    <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Mensagem..." className="w-full border-2 border-slate-100 p-3 rounded-xl text-sm font-bold outline-none h-20"/>
-                    <button onClick={() => {if(titulo && msg) {onSave({titulo, mensagem: msg, data: new Date().toLocaleDateString(), tipo: 'geral'}); setTitulo(''); setMsg('')}}} className="w-full bg-[#1e293b] text-white py-3 rounded-xl font-black text-xs shadow-lg">PUBLICAR AVISO</button>
-                </div>
-                <div className="flex-1 overflow-y-auto space-y-3">
-                    {lista.map(a => (
-                        <div key={a.id} className="p-4 bg-orange-50 border border-orange-100 rounded-xl relative">
-                            <h4 className="font-black text-slate-800 text-sm">{a.titulo}</h4>
-                            <p className="text-xs text-slate-600 mt-1">{a.mensagem}</p>
-                            <button onClick={()=>onDelete(a.id)} className="absolute top-2 right-2 text-red-300 hover:text-red-500"><Trash2 size={14}/></button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-    )
-}
-
-function ModalEnquete({ lista, onClose, onSave }) {
-    const [titulo, setTitulo] = useState('');
-    return (
-        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-[32px] w-full max-w-sm p-6 shadow-2xl h-[80vh] flex flex-col">
-                <div className="flex justify-between items-center mb-4"><h3 className="font-black text-xl flex items-center gap-2"><Vote size={20}/> Votações</h3><button onClick={onClose}><X size={20}/></button></div>
-                <div className="flex gap-2 mb-4"><input value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Pergunta da votação..." className="flex-1 border-2 border-slate-100 p-3 rounded-xl text-sm font-bold outline-none"/><button onClick={() => {if(titulo) {onSave({titulo, opcoes: {sim:0, nao:0}, ativa: true, data: new Date().toLocaleDateString()}); setTitulo('')}}} className="bg-[#1e293b] text-white p-3 rounded-xl"><PlusCircle/></button></div>
-                <div className="flex-1 overflow-y-auto space-y-3">
-                    {lista.map(e => (
-                        <div key={e.id} className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                            <h4 className="font-black text-slate-800 text-sm mb-2">{e.titulo}</h4>
-                            <div className="flex gap-2">
-                                <div className="flex-1 bg-white p-2 rounded-lg text-center border border-blue-100"><span className="text-xs font-bold text-slate-400">SIM</span><p className="font-black text-blue-600">{e.opcoes?.sim || 0}</p></div>
-                                <div className="flex-1 bg-white p-2 rounded-lg text-center border border-blue-100"><span className="text-xs font-bold text-slate-400">NÃO</span><p className="font-black text-red-400">{e.opcoes?.nao || 0}</p></div>
-                            </div>
-                        </div>
-                    ))}
-                    {lista.length===0 && <p className="text-center text-slate-400 text-xs mt-10">Nenhuma votação ativa.</p>}
-                </div>
-            </div>
-        </div>
-    )
-}
-
-function ModalInstalar({ onClose }) {
-    const [aba, setAba] = useState('android');
-    return (
-        <div className="fixed inset-0 bg-[#1e293b]/90 z-[9999] flex items-center justify-center p-6 backdrop-blur-md">
-            <div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl text-center">
-                <Smartphone size={48} className="text-[#1e293b] mx-auto mb-4"/>
-                <h3 className="font-black text-xl text-[#1e293b] mb-2">Instalar App</h3>
-                <div className="flex bg-slate-100 p-1 rounded-xl mb-4"><button onClick={() => setAba('android')} className={`flex-1 py-2 text-xs font-black rounded-lg transition ${aba==='android'?'bg-white shadow-sm text-[#1e293b]':'text-slate-400'}`}>Android</button><button onClick={() => setAba('ios')} className={`flex-1 py-2 text-xs font-black rounded-lg transition ${aba==='ios'?'bg-white shadow-sm text-[#1e293b]':'text-slate-400'}`}>iPhone (iOS)</button></div>
-                {aba === 'android' ? ( <div className="text-sm text-slate-500 mb-6 leading-relaxed text-left bg-slate-50 p-4 rounded-xl border border-slate-100"><p className="mb-2">1. Abra o navegador <strong>Google Chrome</strong>.</p><p className="mb-2">2. Toque nos <strong>três pontinhos (⋮)</strong> no canto superior direito.</p><p>3. Selecione <strong>"Instalar aplicativo"</strong>.</p></div> ) : ( <div className="text-sm text-slate-500 mb-6 leading-relaxed text-left bg-slate-50 p-4 rounded-xl border border-slate-100"><p className="mb-2">1. Abra o navegador <strong>Safari</strong>.</p><p className="mb-2">2. Toque no botão <strong>Compartilhar (<Share size={10} className="inline"/>)</strong>.</p><p>3. Toque em <strong>"Adicionar à Tela de Início"</strong>.</p></div> )}
-                <button onClick={onClose} className="w-full bg-[#1e293b] text-white py-4 rounded-xl font-black text-xs uppercase shadow-lg">Entendi</button>
-            </div>
-        </div>
-    )
+    ); 
 }
