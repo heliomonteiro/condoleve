@@ -61,9 +61,8 @@ export function SetupWizard({ onComplete }) {
                     telefoneSindico: form.celular, 
                     categorias: CATEGORIAS_PADRAO, 
                     inicioOperacao: inicioOp, 
-                    telefonesUteis: INFO_UTEIS_PADRAO, 
-                    filaAprovacao: [] 
-                } 
+                    telefonesUteis: INFO_UTEIS_PADRAO
+                }
             }); 
             if (e3) throw e3;
             

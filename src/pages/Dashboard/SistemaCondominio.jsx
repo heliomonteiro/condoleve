@@ -26,11 +26,12 @@ export function SistemaCondominio({ supabase, session, contexto, onSwitch, showT
   const [pagamentos, setPagamentos] = useState([]);
   const [patrimonio, setPatrimonio] = useState([]); 
   const [avisos, setAvisos] = useState([]);
-  const [enquetes, setEnquetes] = useState([]); 
-  
-  const [config, setConfig] = useState({ 
-    valorCondominio: 200, sindicaNome: 'Síndico(a)', predioNome: 'CondoLeve', chavePix: '', 
-    saldoInicial: 0, inicioOperacao: '', categorias: CATEGORIAS_PADRAO, telefonesUteis: INFO_UTEIS_PADRAO, filaAprovacao: [], telefoneSindico: ''
+  const [enquetes, setEnquetes] = useState([]);
+  const [convitesPendentes, setConvitesPendentes] = useState([]);
+
+  const [config, setConfig] = useState({
+    valorCondominio: 200, sindicaNome: 'Síndico(a)', predioNome: 'CondoLeve', chavePix: '',
+    saldoInicial: 0, inicioOperacao: '', categorias: CATEGORIAS_PADRAO, telefonesUteis: INFO_UTEIS_PADRAO, telefoneSindico: ''
   });
   
   const [mesAtual, setMesAtual] = useState(MESES[new Date().getMonth()]);
@@ -64,8 +65,8 @@ export function SistemaCondominio({ supabase, session, contexto, onSwitch, showT
   const carregarDados = async () => {
       setLoading(true);
       try {
-          const [resUnidades, resPagamentos, resDespesas, resAvisos, resZeladoria, resEnquetes, resConfig] = await Promise.all([
-              supabase.from('unidades').select('*').eq('condominio_id', cId), supabase.from('pagamentos').select('*').eq('condominio_id', cId), supabase.from('despesas').select('*').eq('condominio_id', cId), supabase.from('avisos').select('*').eq('condominio_id', cId), supabase.from('zeladoria').select('*').eq('condominio_id', cId), supabase.from('enquetes').select('*').eq('condominio_id', cId), supabase.from('config_geral').select('*').eq('condominio_id', cId).maybeSingle()
+          const [resUnidades, resPagamentos, resDespesas, resAvisos, resZeladoria, resEnquetes, resConfig, resConvites] = await Promise.all([
+              supabase.from('unidades').select('*').eq('condominio_id', cId), supabase.from('pagamentos').select('*').eq('condominio_id', cId), supabase.from('despesas').select('*').eq('condominio_id', cId), supabase.from('avisos').select('*').eq('condominio_id', cId), supabase.from('zeladoria').select('*').eq('condominio_id', cId), supabase.from('enquetes').select('*').eq('condominio_id', cId), supabase.from('config_geral').select('*').eq('condominio_id', cId).maybeSingle(), supabase.from('convites').select('*').eq('condominio_id', cId).eq('status', 'pendente')
           ]);
           if (resUnidades.data) setUnidades(resUnidades.data.sort((a,b) => String(a.numero).localeCompare(String(b.numero), undefined, {numeric: true})));
           if (resPagamentos.data) setPagamentos(resPagamentos.data);
@@ -73,11 +74,11 @@ export function SistemaCondominio({ supabase, session, contexto, onSwitch, showT
           if (resAvisos.data) setAvisos(resAvisos.data);
           if (resZeladoria.data) setPatrimonio(resZeladoria.data);
           if (resEnquetes.data) setEnquetes(resEnquetes.data);
+          if (resConvites.data) setConvitesPendentes(resConvites.data.map(c => ({ id: c.id, userId: c.user_id, numero: c.numero_unidade, email: c.email, data: new Date(c.criado_em).toLocaleDateString() })));
           if (resConfig.data) {
               const dadosMesclados = { ...resConfig.data.dados };
               if (!dadosMesclados.telefonesUteis) dadosMesclados.telefonesUteis = INFO_UTEIS_PADRAO;
-              if (!dadosMesclados.filaAprovacao) dadosMesclados.filaAprovacao = [];
-              if (!dadosMesclados.inicioOperacao) { 
+              if (!dadosMesclados.inicioOperacao) {
                   const d = new Date(); 
                   dadosMesclados.inicioOperacao = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; 
               }
@@ -210,22 +211,23 @@ export function SistemaCondominio({ supabase, session, contexto, onSwitch, showT
   };
   const salvarConfig = async (novaConfig) => { setConfig(novaConfig); await supabase.from('config_geral').upsert({ user_id: session.user.id, condominio_id: cId, dados: novaConfig }, { onConflict: 'condominio_id' }); showToast('Configurações salvas!'); };
 
-  const processarAprovacao = async (pedido, aprovado) => { 
-      const novaFila = config.filaAprovacao.filter(f => f.id !== pedido.id); 
-      if (aprovado) { 
-          const unit = unidades.find(u => u.numero === pedido.numero); 
-          if (unit) { 
-              await supabase.from('unidades').update({ linked_user_id: pedido.userId }).eq('id', unit.id); 
-              await supabase.from('vinculos').insert({ user_id: pedido.userId, condominio_id: cId, role: 'morador', unidade_id: unit.id }); 
-              setUnidades(prev => prev.map(u => u.id === unit.id ? { ...u, linked_user_id: pedido.userId } : u)); 
-              showToast(`Acesso aprovado para o Apto ${unit.numero}!`); 
+  const processarAprovacao = async (pedido, aprovado) => {
+      setConvitesPendentes(prev => prev.filter(f => f.id !== pedido.id));
+      if (aprovado) {
+          const unit = unidades.find(u => u.numero === pedido.numero);
+          if (unit) {
+              await supabase.from('unidades').update({ linked_user_id: pedido.userId }).eq('id', unit.id);
+              await supabase.from('vinculos').insert({ user_id: pedido.userId, condominio_id: cId, role: 'morador', unidade_id: unit.id });
+              setUnidades(prev => prev.map(u => u.id === unit.id ? { ...u, linked_user_id: pedido.userId } : u));
+              await supabase.from('convites').update({ status: 'aprovado' }).eq('id', pedido.id);
+              showToast(`Acesso aprovado para o Apto ${unit.numero}!`);
           } else {
-              showToast("Unidade não encontrada.", "error"); 
+              showToast("Unidade não encontrada.", "error");
           }
       } else {
-          showToast("Solicitação rejeitada."); 
+          await supabase.from('convites').update({ status: 'rejeitado' }).eq('id', pedido.id);
+          showToast("Solicitação rejeitada.");
       }
-      salvarConfig({ ...config, filaAprovacao: novaFila }); 
   };
 
   const getPagamentosMes = (unidade, chave) => { const [mes, ano] = chave.split('-'); return pagamentos.filter(p => p.unidade_id === unidade.id && p.mes === mes && String(p.ano) === String(ano)); };
@@ -365,7 +367,7 @@ export function SistemaCondominio({ supabase, session, contexto, onSwitch, showT
   );
 
   const maxSaldoEvolucao = Math.max(...historicoEvolutivo.map(h => h.saldoFinal), 1);
-  const filaPendente = config.filaAprovacao?.length || 0;
+  const filaPendente = convitesPendentes.length;
   const porcentagemArrecadada = potencialMes > 0 ? (receitaMes / potencialMes) * 100 : 0;
   const porcentagemGastoPago = gastoMes > 0 ? (gastoPagoMes / gastoMes) * 100 : 0;
 
@@ -663,7 +665,7 @@ export function SistemaCondominio({ supabase, session, contexto, onSwitch, showT
       
       {modalTelefones && <ModalTelefonesUteis config={config} setConfig={salvarConfig} onClose={() => setModalTelefones(false)} setPrintMode={setPrintMode} />}
       
-      {modalFila && <ModalFilaAprovacao fila={config.filaAprovacao} onClose={() => setModalFila(false)} processarAprovacao={processarAprovacao} />}
+      {modalFila && <ModalFilaAprovacao fila={convitesPendentes} onClose={() => setModalFila(false)} processarAprovacao={processarAprovacao} />}
       
       {modalInstalar && <ModalInstalarApp onClose={() => setModalInstalar(false)} />}
     </div>

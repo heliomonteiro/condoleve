@@ -3,7 +3,6 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Logo } from '../../components/ui/Logo';
 import { Card } from '../../components/ui/Card';
-import { generateId } from '../../utils/helpers';
 import { SetupWizard } from '../Wizard/SetupWizard';
 import { RefreshCw, Clock, Crown, Home, ArrowRight, PlusCircle } from 'lucide-react';
 
@@ -20,20 +19,14 @@ export function SeletorContexto() {
             try {
                 if (inviteData && inviteData.cId) {
                     showToast(`Enviando solicitação para o Síndico...`);
-                    const { data: configTarget } = await supabase.from('config_geral').select('*').eq('condominio_id', inviteData.cId).maybeSingle();
-                    
-                    if (configTarget) {
-                        const dadosApp = configTarget.dados || {}; 
-                        const fila = dadosApp.filaAprovacao || [];
-                        if (!fila.find(f => f.userId === session.user.id)) { 
-                            fila.push({ id: generateId(), userId: session.user.id, email: session.user.email, numero: inviteData.numero, data: new Date().toLocaleDateString() }); 
-                            await supabase.from('config_geral').update({ dados: { ...dadosApp, filaAprovacao: fila } }).eq('condominio_id', inviteData.cId); 
-                        }
-                        setStatusFila({ predio: dadosApp.predioNome || 'Condomínio', apto: inviteData.numero });
+                    const { data: existente } = await supabase.from('convites').select('id').eq('condominio_id', inviteData.cId).eq('user_id', session.user.id).eq('status', 'pendente').maybeSingle();
+                    if (!existente) {
+                        await supabase.from('convites').insert({ condominio_id: inviteData.cId, user_id: session.user.id, email: session.user.email, numero_unidade: inviteData.numero });
                     }
-                    setInviteData(null); 
-                    setLoading(false); 
-                    return; 
+                    setStatusFila({ predio: 'seu condomínio', apto: inviteData.numero });
+                    setInviteData(null);
+                    setLoading(false);
+                    return;
                 }
 
                 const { data, error } = await supabase.from('vinculos').select('*, condominios(nome), unidades(numero)').eq('user_id', session.user.id);
