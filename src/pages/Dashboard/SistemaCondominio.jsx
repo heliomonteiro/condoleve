@@ -41,6 +41,8 @@ import {
   Sparkles,
   BookOpen,
   LogOut,
+  Coins,
+  BookMarked,
 } from 'lucide-react';
 import { Logo } from '../../components/ui/Logo';
 import { Card } from '../../components/ui/Card';
@@ -70,6 +72,10 @@ import {
   ModalNovaUnidade,
   ModalAuditoria,
 } from '../../features/modals/ManagementModals';
+import {
+  ModalRateioExtra,
+  ModalConvencaoAssembleia,
+} from '../../features/modals/Phase2Modals';
 import {
   safeStr,
   safeNum,
@@ -125,6 +131,7 @@ export function SistemaCondominio({
   const [enquetes, setEnquetes] = useState([]);
   const [convitesPendentes, setConvitesPendentes] = useState([]);
   const [historicoTaxas, setHistoricoTaxas] = useState([]);
+  const [rateiosExtras, setRateiosExtras] = useState([]);
   const [assinaturaDb, setAssinaturaDb] = useState(null);
 
   const [config, setConfig] = useState({
@@ -153,6 +160,8 @@ export function SistemaCondominio({
   const [modalNovaUnidade, setModalNovaUnidade] = useState(false);
   const [modalAuditoria, setModalAuditoria] = useState(false);
   const [modalGuia, setModalGuia] = useState(false);
+  const [modalRateio, setModalRateio] = useState(false);
+  const [modalConvencao, setModalConvencao] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
   const [modalConfig, setModalConfig] = useState(false);
@@ -224,6 +233,7 @@ export function SistemaCondominio({
         resConvites,
         resTaxas,
         resAssinatura,
+        resRateios,
       ] = await Promise.all([
         unidadesQuery,
         pagamentosQuery,
@@ -235,6 +245,7 @@ export function SistemaCondominio({
         convitesQuery,
         supabase.from('historico_taxas').select('*').eq('condominio_id', cId),
         supabase.from('assinaturas_condominio').select('*').eq('condominio_id', cId).maybeSingle(),
+        supabase.from('rateios_extras').select('*').eq('condominio_id', cId),
       ]);
 
       if (resUnidades.data) {
@@ -252,6 +263,7 @@ export function SistemaCondominio({
       if (resZeladoria.data) setPatrimonio(resZeladoria.data);
       if (resEnquetes.data) setEnquetes(resEnquetes.data);
       if (resTaxas && !resTaxas.error && resTaxas.data) setHistoricoTaxas(resTaxas.data);
+      if (resRateios && !resRateios.error && resRateios.data) setRateiosExtras(resRateios.data);
       if (resAssinatura && !resAssinatura.error && resAssinatura.data) {
         setAssinaturaDb(resAssinatura.data);
       }
@@ -653,9 +665,57 @@ export function SistemaCondominio({
 
   const toggleStatusManutencao = async (id, concluido) => {
     if (!isSindico) return;
-    setPatrimonio((prev) => prev.map((p) => (p.id === id ? { ...p, concluido } : p)));
-    await supabase.from('zeladoria').update({ concluido }).eq('id', id);
+    const status = concluido ? 'concluido' : 'aberto';
+    setPatrimonio((prev) => prev.map((p) => (p.id === id ? { ...p, concluido, status } : p)));
+    const { error } = await supabase.from('zeladoria').update({ concluido, status }).eq('id', id);
+    if (error) {
+      await supabase.from('zeladoria').update({ concluido }).eq('id', id);
+    }
     showToast(concluido ? 'Chamado resolvido!' : 'Chamado reaberto.');
+  };
+
+  const atualizarChamadoManutencao = async (id, updates) => {
+    if (!isSindico) return;
+    setPatrimonio((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+    const { error } = await supabase.from('zeladoria').update(updates).eq('id', id);
+    if (error) {
+      // Fallback caso a migration 20261126000000 ainda não tenha sido rodada no banco
+      await supabase.from('zeladoria').update({ concluido: Boolean(updates.concluido) }).eq('id', id);
+      showToast(
+        'Status básico salvo. Execute a migration 20261126000000 no Supabase para salvar respostas e status Em Andamento.',
+        'error'
+      );
+      return;
+    }
+    showToast('Chamado atualizado!');
+  };
+
+  const criarRateiosExtras = async (itens) => {
+    if (!isSindico) return;
+    const rows = itens.map((it) => ({
+      ...it,
+      condominio_id: cId,
+      user_id: session.user.id,
+    }));
+    const { data, error } = await supabase.from('rateios_extras').insert(rows).select();
+    if (error) {
+      showToast(
+        error.message?.includes('rateios_extras')
+          ? 'Execute a migration 20261126000000 no Supabase para ativar Rateios/Cotas Extras.'
+          : error.message,
+        'error'
+      );
+      return;
+    }
+    setRateiosExtras((prev) => [...prev, ...(data || [])]);
+    showToast('Rateio / Cota Extra lançado com sucesso!');
+  };
+
+  const apagarRateioExtra = async (id) => {
+    if (!isSindico) return;
+    await supabase.from('rateios_extras').delete().eq('id', id);
+    setRateiosExtras((prev) => prev.filter((r) => r.id !== id));
+    showToast('Rateio removido.');
   };
 
   const apagarManutencao = async (id) => {
@@ -800,10 +860,11 @@ export function SistemaCondominio({
       pagamentos,
       config,
       historicoTaxas,
+      rateiosExtras,
     });
 
     return { unidadesFiltradas: uFilter, inadimplenciaGlobal: devedoresGlobais };
-  }, [unidades, busca, pagamentos, config, historicoTaxas]);
+  }, [unidades, busca, pagamentos, config, historicoTaxas, rateiosExtras]);
 
   const {
     taxaVigenteMes,
@@ -826,8 +887,9 @@ export function SistemaCondominio({
         anoAtual,
         config,
         historicoTaxas,
+        rateiosExtras,
       }),
-    [unidades, despesas, pagamentos, mesAtual, anoAtual, config, historicoTaxas]
+    [unidades, despesas, pagamentos, mesAtual, anoAtual, config, historicoTaxas, rateiosExtras]
   );
 
   const enviarWhatsAppCobranca = (dev) => {
@@ -941,6 +1003,7 @@ export function SistemaCondominio({
           supabase={supabase}
           unidadesTotal={unidades.length}
           taxaVigenteMes={taxaVigenteMes}
+          rateiosExtras={rateiosExtras}
         />
         {modalReciboVisual && (
           <ModalReciboVisual
@@ -1867,6 +1930,32 @@ export function SistemaCondominio({
                   Guia &amp; Leis
                 </span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setModalRateio(true)}
+                className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 hover:shadow-md transition active:scale-95 group"
+              >
+                <div className="bg-amber-50 text-amber-600 p-4 rounded-2xl group-hover:bg-amber-100 transition">
+                  <Coins size={24} />
+                </div>
+                <span className="font-black text-slate-700 text-[10px] uppercase tracking-widest text-center">
+                  Rateio Extra
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setModalConvencao(true)}
+                className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 hover:shadow-md transition active:scale-95 group"
+              >
+                <div className="bg-indigo-50 text-indigo-600 p-4 rounded-2xl group-hover:bg-indigo-100 transition">
+                  <BookMarked size={24} />
+                </div>
+                <span className="font-black text-slate-700 text-[10px] uppercase tracking-widest text-center">
+                  Convenção
+                </span>
+              </button>
             </div>
           </div>
         )}
@@ -1917,6 +2006,7 @@ export function SistemaCondominio({
           subscription={subscription}
           condominioNome={config.predioNome}
           condominioId={cId}
+          showToast={showToast}
         />
       )}
 
@@ -2097,6 +2187,7 @@ export function SistemaCondominio({
           readOnly={isConselheiro}
           onClose={() => setModalManutencao(false)}
           onToggle={toggleStatusManutencao}
+          onUpdateChamado={atualizarChamadoManutencao}
           onDelete={(id) =>
             setConfirmacao({
               titulo: 'Apagar Chamado?',
@@ -2198,7 +2289,38 @@ export function SistemaCondominio({
         />
       )}
 
-      {modalGuia && <ModalGuiaCondominio onClose={() => setModalGuia(false)} />}
+      {modalGuia && (
+        <ModalGuiaCondominio onClose={() => setModalGuia(false)} convencao={config.convencao} />
+      )}
+
+      {modalRateio && (
+        <ModalRateioExtra
+          rateios={rateiosExtras}
+          unidades={unidades}
+          mesAtual={mesAtual}
+          anoAtual={anoAtual}
+          readOnly={isConselheiro}
+          onClose={() => setModalRateio(false)}
+          onCreate={criarRateiosExtras}
+          onDelete={apagarRateioExtra}
+          subscription={subscription}
+          onRequestUpgrade={solicitarUpgrade}
+        />
+      )}
+
+      {modalConvencao && (
+        <ModalConvencaoAssembleia
+          config={config}
+          setConfig={salvarConfig}
+          onClose={() => setModalConvencao(false)}
+          supabase={supabase}
+          condominioId={cId}
+          showToast={showToast}
+          subscription={subscription}
+          onRequestUpgrade={solicitarUpgrade}
+          readOnly={isConselheiro}
+        />
+      )}
     </div>
   );
 }

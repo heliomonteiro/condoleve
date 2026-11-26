@@ -72,6 +72,7 @@ export function ModoMorador({
   supabase,
   unidadesTotal,
   taxaVigenteMes,
+  rateiosExtras = [],
 }) {
   const [activeTab, setActiveTab] = useState('mural');
   const [historyMode, setHistoryMode] = useState(false);
@@ -101,10 +102,18 @@ export function ModoMorador({
 
   const pags = getPagamentosMes(unidade, `${mesAtual}-${anoAtual}`);
   const totalPago = calcularTotalPago(pags);
-  const valorDevido = unidade.isento_taxa
+  const extrasDoMes = rateiosExtras.filter(
+    (r) =>
+      r.mes === mesAtual &&
+      String(r.ano) === String(anoAtual) &&
+      (!unidade.isento_taxa || r.incluir_isentos)
+  );
+  const totalExtras = extrasDoMes.reduce((acc, r) => acc + safeNum(r.valor_por_unidade), 0);
+  const valorOrdinario = unidade.isento_taxa
     ? 0
     : safeNum(taxaVigenteMes ?? config.valorCondominio);
-  const isPago = unidade.isento_taxa || totalPago >= valorDevido;
+  const valorDevido = valorOrdinario + totalExtras;
+  const isPago = valorDevido === 0 || totalPago >= valorDevido;
   const valorRestante = Math.max(0, valorDevido - totalPago);
 
   const meusPagamentos = pagamentosCompletos
@@ -296,9 +305,22 @@ export function ModoMorador({
                 </button>
               </div>
               {totalPago > 0 && (
-                <p className="text-[10px] text-slate-400 font-bold mb-3 uppercase">
+                <p className="text-[10px] text-slate-400 font-bold mb-2 uppercase">
                   Restante a pagar (Total: {fmt(valorDevido)})
                 </p>
+              )}
+              {extrasDoMes.length > 0 && (
+                <div className="mb-3 bg-amber-50 border border-amber-200 rounded-xl p-2.5 space-y-1">
+                  {extrasDoMes.map((ex) => (
+                    <p key={ex.id} className="text-[11px] font-bold text-amber-900 flex justify-between">
+                      <span>
+                        + Cota Extra: {ex.titulo} (
+                        {ex.tipo_cobranca === 'extraordinaria' ? 'Proprietário' : 'Morador'})
+                      </span>
+                      <span>{fmt(ex.valor_por_unidade)}</span>
+                    </p>
+                  ))}
+                </div>
               )}
               <button
                 type="button"
@@ -640,47 +662,72 @@ export function ModoMorador({
                   </div>
                 </div>
               )}
-              {zelaShow.map((z) => (
-                <div
-                  key={z.id}
-                  className="p-3.5 rounded-xl border bg-white border-slate-100 shadow-sm flex items-start gap-3"
-                >
-                  {z.concluido ? (
-                    <CheckCircle size={18} className="text-green-500 shrink-0 mt-0.5" />
-                  ) : (
-                    <AlertCircle size={18} className="text-orange-400 shrink-0 mt-0.5" />
-                  )}
-                  <div>
-                    <span
-                      className={`text-xs font-bold block leading-relaxed ${
-                        z.concluido ? 'text-slate-400 line-through' : 'text-slate-700'
-                      }`}
-                    >
-                      {z.item}
-                    </span>
-                    {z.url_foto && (
-                      <a
-                        href={z.url_foto}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-1.5 inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-blue-500 bg-blue-50 px-2.5 py-1.5 rounded-lg transition hover:bg-blue-100"
-                      >
-                        <ImageIcon size={10} /> VER FOTO
-                      </a>
+              {zelaShow.map((z) => {
+                const st = z.status || (z.concluido ? 'concluido' : 'aberto');
+                return (
+                  <div
+                    key={z.id}
+                    className="p-3.5 rounded-xl border bg-white border-slate-100 shadow-sm flex items-start gap-3"
+                  >
+                    {st === 'concluido' ? (
+                      <CheckCircle size={18} className="text-green-500 shrink-0 mt-0.5" />
+                    ) : st === 'em_andamento' ? (
+                      <RefreshCw size={18} className="text-blue-500 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle size={18} className="text-orange-400 shrink-0 mt-0.5" />
                     )}
-                    <div className="flex items-center gap-1.5 mt-2">
-                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded">
-                        {z.data}
+                    <div className="flex-1">
+                      <span
+                        className={`text-xs font-bold block leading-relaxed ${
+                          z.concluido ? 'text-slate-400 line-through' : 'text-slate-700'
+                        }`}
+                      >
+                        {z.item}
                       </span>
-                      {z.relator && (
-                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded">
-                          {z.relator}
-                        </span>
+                      {z.resposta_sindico && (
+                        <p className="mt-1.5 text-[11px] bg-blue-50 border border-blue-100 text-blue-900 p-2 rounded-lg font-semibold">
+                          <strong>Síndico:</strong> {z.resposta_sindico}
+                        </p>
                       )}
+                      {z.url_foto && (
+                        <a
+                          href={z.url_foto}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1.5 inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-blue-500 bg-blue-50 px-2.5 py-1.5 rounded-lg transition hover:bg-blue-100"
+                        >
+                          <ImageIcon size={10} /> VER FOTO
+                        </a>
+                      )}
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <span
+                          className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${
+                            st === 'concluido'
+                              ? 'bg-green-100 text-green-700'
+                              : st === 'em_andamento'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-orange-100 text-orange-700'
+                          }`}
+                        >
+                          {st === 'concluido'
+                            ? 'Resolvido'
+                            : st === 'em_andamento'
+                            ? 'Em Andamento'
+                            : 'Aberto'}
+                        </span>
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded">
+                          {z.data}
+                        </span>
+                        {z.relator && (
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded">
+                            {z.relator}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {zelaShow.length === 0 && (
                 <EmptyState icon={Wrench} title="Tudo em Ordem" desc="" />
               )}
@@ -851,7 +898,7 @@ export function ModoMorador({
         />
       )}
       {modalInstalar && <ModalInstalarApp onClose={() => setModalInstalar(false)} />}
-      {verGuia && <ModalGuiaCondominio onClose={() => setVerGuia(false)} />}
+      {verGuia && <ModalGuiaCondominio onClose={() => setVerGuia(false)} convencao={config.convencao} />}
     </div>
   );
 }

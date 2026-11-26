@@ -204,9 +204,23 @@ export function ModalEditarUnidade({
   );
 }
 
-export function ModalManutencao({ lista, onClose, onToggle, onDelete, readOnly = false }) {
+export function ModalManutencao({
+  lista,
+  onClose,
+  onToggle,
+  onUpdateChamado,
+  onDelete,
+  readOnly = false,
+}) {
+  const [respostas, setRespostas] = useState({});
+
   return (
-    <div className="fixed inset-0 bg-[#1e293b]/90 z-[9000] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm text-left">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Manutenção e Chamados"
+      className="fixed inset-0 bg-[#1e293b]/90 z-[9000] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm text-left"
+    >
       <div className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-in slide-in-from-bottom-10 max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center mb-6 border-b pb-4">
           <h3 className="font-black text-xl text-slate-800 flex items-center gap-2">
@@ -215,69 +229,153 @@ export function ModalManutencao({ lista, onClose, onToggle, onDelete, readOnly =
           <button
             type="button"
             onClick={onClose}
-            className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"
+            aria-label="Fechar"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center bg-slate-100 rounded-full hover:bg-slate-200"
           >
             <X size={20} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4">
-          {lista.map((z) => (
-            <div
-              key={z.id}
-              className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3"
-            >
-              <button
-                type="button"
-                disabled={readOnly}
-                onClick={() => onToggle(z.id, !z.concluido)}
-                className={`shrink-0 mt-0.5 ${z.concluido ? 'text-green-500' : 'text-slate-300'}`}
+        <div className="flex-1 overflow-y-auto space-y-3 pr-1 pb-4">
+          {lista.map((z) => {
+            const statusAtual = z.status || (z.concluido ? 'concluido' : 'aberto');
+            const respostaDraft =
+              respostas[z.id] !== undefined ? respostas[z.id] : z.resposta_sindico || '';
+
+            return (
+              <div
+                key={z.id}
+                className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3"
               >
-                {z.concluido ? (
-                  <CheckCircle size={24} />
-                ) : (
-                  <div className="w-6 h-6 border-2 border-slate-300 rounded-full" />
-                )}
-              </button>
-              <div className="flex-1">
-                <p
-                  className={`text-sm font-bold ${
-                    z.concluido ? 'line-through text-slate-400' : 'text-slate-800'
-                  }`}
-                >
-                  {z.item}
-                </p>
-                <div className="flex flex-wrap gap-2 mt-2 items-center">
-                  <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-200/50 px-2 py-0.5 rounded">
-                    {z.data}
-                  </span>
-                  {z.relator && (
-                    <span className="text-[9px] font-black text-orange-500 uppercase bg-orange-50 px-2 py-0.5 rounded border border-orange-100">
-                      Aberto por: {z.relator}
-                    </span>
-                  )}
-                  {z.url_foto && (
-                    <a
-                      href={z.url_foto}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-100"
+                <div className="flex items-start gap-3">
+                  <button
+                    type="button"
+                    disabled={readOnly}
+                    onClick={() => onToggle(z.id, !z.concluido)}
+                    className={`shrink-0 mt-0.5 ${z.concluido ? 'text-green-500' : 'text-slate-300'}`}
+                  >
+                    {z.concluido ? (
+                      <CheckCircle size={24} />
+                    ) : (
+                      <div className="w-6 h-6 border-2 border-slate-300 rounded-full" />
+                    )}
+                  </button>
+                  <div className="flex-1">
+                    <p
+                      className={`text-sm font-bold ${
+                        z.concluido ? 'line-through text-slate-400' : 'text-slate-800'
+                      }`}
                     >
-                      <ImageIcon size={10} /> Ver Foto
-                    </a>
+                      {z.item}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mt-2 items-center">
+                      <span
+                        className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                          statusAtual === 'concluido'
+                            ? 'bg-green-100 text-green-700'
+                            : statusAtual === 'em_andamento'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-orange-100 text-orange-700'
+                        }`}
+                      >
+                        {statusAtual === 'concluido'
+                          ? 'Resolvido'
+                          : statusAtual === 'em_andamento'
+                          ? 'Em Andamento'
+                          : 'Aberto'}
+                      </span>
+                      <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-200/50 px-2 py-0.5 rounded">
+                        {z.data}
+                      </span>
+                      {z.relator && (
+                        <span className="text-[9px] font-black text-orange-500 uppercase bg-orange-50 px-2 py-0.5 rounded border border-orange-100">
+                          {z.relator}
+                        </span>
+                      )}
+                      {z.url_foto && (
+                        <a
+                          href={z.url_foto}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-100"
+                        >
+                          <ImageIcon size={10} /> Ver Foto
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(z.id)}
+                      className="text-slate-300 hover:text-red-500 p-2"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   )}
                 </div>
+
+                {!readOnly && onUpdateChamado && (
+                  <div className="pt-2 border-t border-slate-200/70 space-y-2">
+                    <div className="flex gap-1.5">
+                      {[
+                        { id: 'aberto', label: 'Aberto' },
+                        { id: 'em_andamento', label: 'Em Andamento' },
+                        { id: 'concluido', label: 'Resolvido' },
+                      ].map((st) => (
+                        <button
+                          key={st.id}
+                          type="button"
+                          onClick={() =>
+                            onUpdateChamado(z.id, {
+                              status: st.id,
+                              concluido: st.id === 'concluido',
+                              resposta_sindico: respostaDraft,
+                            })
+                          }
+                          className={`flex-1 py-1.5 px-2 rounded-lg text-[10px] font-black transition border ${
+                            statusAtual === st.id
+                              ? 'bg-[#1e293b] text-white border-[#1e293b]'
+                              : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {st.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <input
+                        value={respostaDraft}
+                        onChange={(e) =>
+                          setRespostas((prev) => ({ ...prev, [z.id]: e.target.value }))
+                        }
+                        placeholder="Recado p/ morador (ex: Técnico vem quinta)"
+                        className="flex-1 bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold outline-none focus:border-[#84cc16]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onUpdateChamado(z.id, {
+                            status: statusAtual === 'aberto' ? 'em_andamento' : statusAtual,
+                            concluido: statusAtual === 'concluido',
+                            resposta_sindico: respostaDraft,
+                          })
+                        }
+                        className="bg-[#84cc16] text-[#1e293b] px-3 py-2 rounded-xl text-[10px] font-black hover:bg-[#a3e635] transition shrink-0"
+                      >
+                        Salvar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {readOnly && z.resposta_sindico && (
+                  <p className="text-xs bg-white p-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold">
+                    <strong>Síndico:</strong> {z.resposta_sindico}
+                  </p>
+                )}
               </div>
-              {!readOnly && (
-                <button
-                  type="button"
-                  onClick={() => onDelete(z.id)}
-                  className="text-slate-300 hover:text-red-500 p-2"
-                >
-                  <Trash2 size={16} />
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
           {lista.length === 0 && (
             <EmptyState icon={CheckSquare} title="Tudo OK!" desc="Nenhuma manutenção pendente." />
           )}

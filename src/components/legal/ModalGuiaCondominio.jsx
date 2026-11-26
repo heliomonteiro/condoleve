@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BookOpen, Home, Key, Scale, Sparkles, X } from 'lucide-react';
 
-export function ModalGuiaCondominio({ onClose }) {
+export function ModalGuiaCondominio({ onClose, convencao = null }) {
   const [aba, setAba] = useState('contas');
 
   return (
@@ -92,6 +92,39 @@ export function ModalGuiaCondominio({ onClose }) {
             </>
           ) : (
             <>
+              {convencao && (
+                <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl space-y-2">
+                  <p className="font-black text-indigo-900 text-sm">
+                    Regras Oficiais Deste Condomínio
+                  </p>
+                  {convencao.horarioSilencio && (
+                    <p className="text-xs text-indigo-900">
+                      <strong>Horário de Silêncio:</strong> {convencao.horarioSilencio}
+                    </p>
+                  )}
+                  {convencao.regrasMudanca && (
+                    <p className="text-xs text-indigo-900">
+                      <strong>Mudanças e Obras:</strong> {convencao.regrasMudanca}
+                    </p>
+                  )}
+                  {convencao.regrasGerais && (
+                    <p className="text-xs text-indigo-900 whitespace-pre-line">
+                      {convencao.regrasGerais}
+                    </p>
+                  )}
+                  {convencao.urlPdf && (
+                    <a
+                      href={convencao.urlPdf}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block mt-1 bg-indigo-600 text-white px-3 py-2 rounded-xl text-[11px] font-black"
+                    >
+                      ABRIR CONVENÇÃO COMPLETA (PDF)
+                    </a>
+                  )}
+                </div>
+              )}
+
               <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-2">
                 <p className="font-black text-slate-800 text-sm flex items-center gap-1.5">
                   <Scale size={16} className="text-[#65a30d]" /> Direitos e Deveres Básicos

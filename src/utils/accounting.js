@@ -13,7 +13,6 @@ export function sumPaymentsCents(pagamentos = []) {
 /**
  * Retorna a taxa condominial vigente em uma determinada competência (ano, monthIndex 0..11),
  * consultando `historicoTaxas` ordenado por `competencia_inicio` ('YYYY-MM').
- * Se não houver histórico salvo no banco, usa `valorPadraoAtual` de forma segura.
  */
 export function getFeeForCompetencia(year, monthZeroBased, historicoTaxas = [], valorPadraoAtual = 0) {
   const targetKey = `${year}-${String(monthZeroBased + 1).padStart(2, '0')}`;
@@ -38,30 +37,53 @@ export function getFeeForCompetencia(year, monthZeroBased, historicoTaxas = [], 
 }
 
 /**
+ * Soma os rateios / cotas extras aplicáveis a uma unidade em determinado mês/ano.
+ */
+export function getExtraChargesCentsForUnit(rateiosExtras = [], mesStr, anoNum, isUnidadeIsenta = false) {
+  let totalCents = 0;
+  for (const r of rateiosExtras) {
+    if (r.mes === mesStr && String(r.ano) === String(anoNum)) {
+      if (!isUnidadeIsenta || r.incluir_isentos) {
+        totalCents += toCents(r.valor_por_unidade);
+      }
+    }
+  }
+  return totalCents;
+}
+
+/**
  * Calcula a inadimplência histórica precisa respeitando:
  * 1) Vigência histórica de reajustes da taxa condominial (`historicoTaxas`)
  * 2) Unidades isentas da taxa ordinária (`u.isento_taxa === true`, ex: apto do síndico)
- * 3) Aritmética exata em centavos
+ * 3) Rateios / cotas extras cadastrados na competência
+ * 4) Aritmética exata em centavos
  */
 export function calculateDelinquency({
   unidades = [],
   pagamentos = [],
   config = {},
   historicoTaxas = [],
+  rateiosExtras = [],
 }) {
   const devedoresGlobais = [];
   const valorAtual = safeNum(config.valorCondominio);
-  if (valorAtual <= 0 && (!historicoTaxas || historicoTaxas.length === 0)) {
+  if (
+    valorAtual <= 0 &&
+    (!historicoTaxas || historicoTaxas.length === 0) &&
+    (!rateiosExtras || rateiosExtras.length === 0)
+  ) {
     return devedoresGlobais;
   }
 
   const now = new Date();
   const defaultInicio = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const [startYearStr, startMonthStr] = (config.inicioOperacao || defaultInicio).split('-');
-  const startIndex = getAbsoluteMonthIndex(parseInt(startYearStr, 10), parseInt(startMonthStr, 10) - 1);
+  const startIndex = getAbsoluteMonthIndex(
+    parseInt(startYearStr, 10),
+    parseInt(startMonthStr, 10) - 1
+  );
   const currentRealIndex = getAbsoluteMonthIndex(now.getFullYear(), now.getMonth());
 
-  // Pré-agrupa pagamentos em centavos por chave `unidadeId|Mes|Ano` em O(N)
   const paymentCentsMap = new Map();
   for (const p of pagamentos) {
     const key = `${p.unidade_id}|${p.mes}|${p.ano}`;
@@ -69,8 +91,6 @@ export function calculateDelinquency({
   }
 
   for (const u of unidades) {
-    if (u.isento_taxa) continue; // Síndico ou unidade isenta não entra como inadimplente!
-
     let mesesAtraso = 0;
     let totalDevidoCents = 0;
 
@@ -79,15 +99,23 @@ export function calculateDelinquency({
       const iterMonthZero = idx % 12;
       const iterMonthStr = MESES[iterMonthZero];
 
-      const taxaMesCents = toCents(
-        getFeeForCompetencia(iterYear, iterMonthZero, historicoTaxas, valorAtual)
+      const taxaOrdinariaCents = u.isento_taxa
+        ? 0
+        : toCents(getFeeForCompetencia(iterYear, iterMonthZero, historicoTaxas, valorAtual));
+      const extrasMesCents = getExtraChargesCentsForUnit(
+        rateiosExtras,
+        iterMonthStr,
+        iterYear,
+        Boolean(u.isento_taxa)
       );
-      if (taxaMesCents <= 0) continue;
+
+      const devidoMesCents = taxaOrdinariaCents + extrasMesCents;
+      if (devidoMesCents <= 0) continue;
 
       const pagoCents = paymentCentsMap.get(`${u.id}|${iterMonthStr}|${iterYear}`) || 0;
-      if (pagoCents < taxaMesCents) {
+      if (pagoCents < devidoMesCents) {
         mesesAtraso++;
-        totalDevidoCents += taxaMesCents - pagoCents;
+        totalDevidoCents += devidoMesCents - pagoCents;
       }
     }
 
@@ -114,6 +142,7 @@ export function calculateDashboardMetrics({
   anoAtual,
   config = {},
   historicoTaxas = [],
+  rateiosExtras = [],
 }) {
   const mesIdx = Math.max(0, MESES.indexOf(mesAtual));
   const taxaVigenteMes = getFeeForCompetencia(
@@ -123,8 +152,18 @@ export function calculateDashboardMetrics({
     config.valorCondominio
   );
 
-  const unidadesPagantesCount = unidades.filter((u) => !u.isento_taxa).length;
-  const potencialMes = fromCents(unidadesPagantesCount * toCents(taxaVigenteMes));
+  let potencialCents = 0;
+  for (const u of unidades) {
+    const ordinaria = u.isento_taxa ? 0 : toCents(taxaVigenteMes);
+    const extras = getExtraChargesCentsForUnit(
+      rateiosExtras,
+      mesAtual,
+      anoAtual,
+      Boolean(u.isento_taxa)
+    );
+    potencialCents += ordinaria + extras;
+  }
+  const potencialMes = fromCents(potencialCents);
 
   const recCents = pagamentos
     .filter((p) => p.mes === mesAtual && String(p.ano) === String(anoAtual))

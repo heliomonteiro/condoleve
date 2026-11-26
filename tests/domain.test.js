@@ -134,3 +134,68 @@ test('Utilitários de usabilidade: máscara de telefone e tradutor de erros em p
   );
   assert.match(translateError('Failed to fetch'), /Sem conexão com a internet/);
 });
+
+test('Rateio / Cota Extra soma corretamente no potencial do mês e inadimplência (respeitando isentos)', () => {
+  const now = new Date();
+  const mesNome = [
+    'Janeiro',
+    'Fevereiro',
+    'Março',
+    'Abril',
+    'Maio',
+    'Junho',
+    'Julho',
+    'Agosto',
+    'Setembro',
+    'Outubro',
+    'Novembro',
+    'Dezembro',
+  ][now.getMonth()];
+  const anoAtual = now.getFullYear();
+  const compAtual = `${anoAtual}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const unidades = [
+    { id: 'u1', numero: '101', isento_taxa: true },
+    { id: 'u2', numero: '102', isento_taxa: false },
+  ];
+
+  // Obra extraordinária onde até o síndico (isento da taxa ordinária) participa com R$ 50
+  const rateiosExtras = [
+    {
+      id: 'r1',
+      titulo: 'Pintura do Portão',
+      valor_por_unidade: 50,
+      mes: mesNome,
+      ano: anoAtual,
+      tipo_cobranca: 'extraordinaria',
+      incluir_isentos: true,
+    },
+  ];
+
+  const metrics = calculateDashboardMetrics({
+    unidades,
+    pagamentos: [],
+    despesas: [],
+    mesAtual: mesNome,
+    anoAtual,
+    config: { valorCondominio: 200, saldoInicial: 0 },
+    historicoTaxas: [{ competencia_inicio: compAtual, valor: 200 }],
+    rateiosExtras,
+  });
+
+  // u1 (0 ordinaria + 50 extra) + u2 (200 ordinaria + 50 extra) = 300
+  assert.equal(metrics.potencialMes, 300);
+
+  const inad = calculateDelinquency({
+    unidades,
+    pagamentos: [{ unidade_id: 'u1', mes: mesNome, ano: anoAtual, valor: 50 }],
+    config: { valorCondominio: 200, inicioOperacao: compAtual },
+    historicoTaxas: [{ competencia_inicio: compAtual, valor: 200 }],
+    rateiosExtras,
+  });
+
+  // u1 pagou os R$ 50 da cota extra e é isento da ordinária -> só u2 deve R$ 250
+  assert.equal(inad.length, 1);
+  assert.equal(inad[0].unidade.numero, '102');
+  assert.equal(inad[0].valorTotalDevido, 250);
+});
