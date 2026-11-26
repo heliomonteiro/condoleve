@@ -32,7 +32,7 @@ export function CondoLeveLP({ onAcessarSistema, onCriarConta }) {
   };
 
   return (
-    <div className="font-sans text-slate-800 antialiased selection:bg-lime-200 selection:text-slate-900 bg-white">
+    <div className="font-sans text-slate-800 antialiased selection:bg-lime-200 selection:text-slate-900 bg-white overflow-x-hidden">
       {/* NAV BAR */}
       <nav className="fixed w-full z-50 bg-white/95 backdrop-blur-md border-b border-slate-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -265,7 +265,7 @@ export function CondoLeveLP({ onAcessarSistema, onCriarConta }) {
               </ul>
             </div>
 
-            <div className="p-8 rounded-3xl bg-slate-900 text-white relative shadow-2xl border-4 border-lime-500/30">
+            <div className="p-8 rounded-3xl bg-slate-900 text-white relative overflow-hidden shadow-2xl border-4 border-lime-500/30">
               <div className="absolute top-0 right-0 -mt-4 -mr-4 bg-lime-500 text-slate-900 px-4 py-6 rounded-full text-xs font-bold rotate-12 shadow-lg">
                 LEVE
               </div>
