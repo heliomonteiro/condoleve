@@ -248,7 +248,7 @@ export function ModalUpgradePlano({
           )}
           <p className="text-[10px] text-center text-slate-400 font-bold flex items-center justify-center gap-1">
             <ShieldCheck size={12} className="text-green-600" /> Pagamento via PIX ou Cartão • Até 30
-            unidades (prédios maiores: sob encomenda)
+            unidades (31+ aptos: plano Em Breve)
           </p>
         </div>
       </div>

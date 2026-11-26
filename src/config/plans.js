@@ -68,13 +68,33 @@ export const PLANS = {
       allowConselhoFiscal: true,
     },
   },
+  enterprise: {
+    id: 'enterprise',
+    name: 'CondoLeve Mais (31+ aptos)',
+    badge: 'EM BREVE',
+    comingSoon: true,
+    priceMonthly: null,
+    priceYearlyMonthlyEq: null,
+    tagline: 'Para condomínios maiores, múltiplos blocos e gestão sob medida.',
+    limits: {
+      maxUnits: 999,
+      maxStorageUploadsPerMonth: 1000,
+      maxAiCreditsPerMonth: 500,
+      allowInadimplenciaAcumulada: true,
+      allowWhatsAppCobranca1Click: true,
+      allowOfficialReportExport: true,
+      allowEnquetes: true,
+      allowBackupJson: true,
+      allowConselhoFiscal: true,
+    },
+  },
 };
 
 export const PRO_HIGHLIGHTS = [
   {
     key: 'unidades',
-    title: 'Até 30 apartamentos (acima disso: Sob Encomenda)',
-    desc: 'Ideal para pequenos condomínios; prédios maiores têm plano personalizado.',
+    title: 'Até 30 apartamentos',
+    desc: 'Ideal para pequenos condomínios. Para 31+ unidades, conheça o plano CondoLeve Mais (Em breve).',
   },
   {
     key: 'cobranca',

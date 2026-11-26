@@ -422,7 +422,7 @@ export function CondoLeveLP({ onAcessarSistema, onCriarConta }) {
                   <span className="text-sm text-slate-400">/mês no plano anual</span>
                 </div>
                 <p className="text-xs text-slate-400 mt-1 mb-3">
-                  Ou {formatarMoeda(PLANS.pro.priceMonthly)}/mês sem fidelidade • Até 30 unidades (maiores: sob encomenda)
+                  Ou {formatarMoeda(PLANS.pro.priceMonthly)}/mês sem fidelidade • Até 30 unidades
                 </p>
                 <div className="bg-lime-500/15 border border-lime-400/30 rounded-2xl p-3.5 mb-5 text-xs text-lime-200 leading-relaxed">
                   💡 <strong className="text-white">Menos de R$ 2,00 por apartamento</strong> em um prédio de 20 unidades — e você pode lançar como despesa administrativa do próprio condomínio!
@@ -444,6 +444,28 @@ export function CondoLeveLP({ onAcessarSistema, onCriarConta }) {
                   className="w-full bg-lime-500 text-slate-900 py-3.5 rounded-xl font-black text-sm hover:bg-lime-400 transition"
                 >
                   TESTAR 30 DIAS GRÁTIS
+                </button>
+              </div>
+
+              <div className="p-6 rounded-3xl bg-slate-50 border border-dashed border-slate-300">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">
+                    Condomínios maiores (31+ aptos)
+                  </span>
+                  <span className="bg-amber-100 text-amber-800 text-xs font-black px-3 py-1 rounded-full">
+                    EM BREVE
+                  </span>
+                </div>
+                <h3 className="text-xl font-black text-slate-900">CondoLeve Mais</h3>
+                <p className="text-sm text-slate-600 mt-1 mb-4">
+                  Para prédios acima de 30 unidades, múltiplos blocos, mais armazenamento e recursos sob medida.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => window.open(getCheckoutLink('Condomínio 31+ unidades', 'landing', 'sob-medida'), '_blank', 'noopener,noreferrer')}
+                  className="w-full bg-white border border-slate-300 text-slate-700 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-slate-100 transition"
+                >
+                  Avise-me / Falar no WhatsApp
                 </button>
               </div>
             </div>

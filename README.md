@@ -8,7 +8,7 @@ Plataforma SaaS web/PWA construída em **React 19 + Vite + Tailwind CSS + Supaba
 
 | Recurso | Plano Grátis (`free`) | Degustação 30 Dias (`trial`) | CondoLeve Pro (`pro` - R$ 49,90/mês) |
 | :--- | :---: | :---: | :---: |
-| **Unidades por condomínio** | Até **8 aptos** | Até 30 aptos | Até **30 aptos** (acima: sob encomenda) |
+| **Unidades por condomínio** | Até **8 aptos** | Até 30 aptos | Até **30 aptos** (31+: *CondoLeve Mais* em breve) |
 | **Livro-caixa (Receitas/Despesas texto)** | Ilimitado | Ilimitado | Ilimitado |
 | **Recibo Digital c/ Chave Verificável** | Sim | Sim | Sim |
 | **Portal do Morador + Mural + Cartaz** | Sim | Sim | Sim |
