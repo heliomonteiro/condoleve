@@ -149,8 +149,16 @@ export function SistemaCondominio({
   const [mesAtual, setMesAtual] = useState(() => MESES[new Date().getMonth()]);
   const [anoAtual, setAnoAtual] = useState(() => new Date().getFullYear());
   const [busca, setBusca] = useState('');
+  const [filtroStatusUnidade, setFiltroStatusUnidade] = useState('todos');
   const [filtroCategoriaDespesa, setFiltroCategoriaDespesa] = useState('Todas');
   const [modoPrivacidade, setModoPrivacidade] = useState(false);
+  const [ocultarChecklist, setOcultarChecklist] = useState(() => {
+    try {
+      return localStorage.getItem(`condoleve_hide_checklist_${cId}`) === '1';
+    } catch {
+      return false;
+    }
+  });
 
   // Modais
   const [modalPagamento, setModalPagamento] = useState(null);
@@ -1264,9 +1272,42 @@ export function SistemaCondominio({
               </div>
             </Card>
 
+            {/* Filtro rápido por status do mês */}
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              {[
+                { id: 'todos', label: `Todos (${unidadesFiltradas.length})` },
+                { id: 'pendentes', label: 'Em Aberto' },
+                { id: 'pagos', label: 'Em Dia' },
+                { id: 'isentos', label: 'Isentos' },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setFiltroStatusUnidade(f.id)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black whitespace-nowrap border transition ${
+                    filtroStatusUnidade === f.id
+                      ? 'bg-[#1e293b] text-white border-[#1e293b]'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
             <div className="grid gap-3">
-              {unidadesFiltradas.length > 0 ? (
-                unidadesFiltradas.map((u) => {
+              {(() => {
+                const unidadesPorStatus = unidadesFiltradas.filter((u) => {
+                  const valorDevido = u.isento_taxa ? 0 : taxaVigenteMes;
+                  const totalPago = calcularTotalPago(getPagamentosMes(u, chaveAtual));
+                  const isPago = u.isento_taxa || totalPago >= valorDevido;
+                  if (filtroStatusUnidade === 'isentos') return Boolean(u.isento_taxa);
+                  if (filtroStatusUnidade === 'pagos') return !u.isento_taxa && isPago;
+                  if (filtroStatusUnidade === 'pendentes') return !u.isento_taxa && !isPago;
+                  return true;
+                });
+                return unidadesPorStatus.length > 0 ? (
+                  unidadesPorStatus.map((u) => {
                   const valorDevido = u.isento_taxa ? 0 : taxaVigenteMes;
                   const pags = getPagamentosMes(u, chaveAtual);
                   const totalPago = calcularTotalPago(pags);
@@ -1393,9 +1434,10 @@ export function SistemaCondominio({
                 <EmptyState
                   icon={Home}
                   title="Nenhum Apartamento"
-                  desc="Nenhuma unidade cadastrada ou a busca não encontrou resultados."
+                  desc="Nenhuma unidade cadastrada ou nenhum apartamento encontrado neste filtro."
                 />
-              )}
+              );
+              })()}
             </div>
           </div>
         )}
@@ -1482,13 +1524,33 @@ export function SistemaCondominio({
                               </p>
                             </div>
                             {isSindico && (
-                              <button
-                                type="button"
-                                onClick={() => enviarWhatsAppCobranca(dev)}
-                                className="bg-[#1e293b] text-white px-5 py-3 rounded-xl text-[10px] font-black flex items-center gap-2 hover:bg-black transition whitespace-nowrap active:scale-95 shadow-lg"
-                              >
-                                <MessageCircle size={14} /> COBRAR
-                              </button>
+                              <div className="flex flex-col sm:flex-row gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => enviarWhatsAppCobranca(dev)}
+                                  className="bg-[#1e293b] text-white px-4 py-3 rounded-xl text-[10px] font-black flex items-center justify-center gap-1.5 hover:bg-black transition whitespace-nowrap active:scale-95 shadow-lg"
+                                >
+                                  <MessageCircle size={14} /> COBRAR
+                                </button>
+                                {dev.unidade.mora_proprietario === false &&
+                                  dev.unidade.proprietario?.telefone && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        enviarWhatsAppCobranca({
+                                          ...dev,
+                                          unidade: {
+                                            ...dev.unidade,
+                                            mora_proprietario: true,
+                                          },
+                                        })
+                                      }
+                                      className="bg-amber-50 text-amber-800 border border-amber-200 px-3 py-2 rounded-xl text-[9px] font-black hover:bg-amber-100 transition whitespace-nowrap"
+                                    >
+                                      ZAP DONO
+                                    </button>
+                                  )}
+                              </div>
                             )}
                           </div>
                         </Card>
@@ -1681,6 +1743,83 @@ export function SistemaCondominio({
         {/* ABA CAIXA (DASHBOARD) */}
         {abaAtiva === 'caixa' && (
           <div className="space-y-6 animate-in fade-in duration-500 text-left">
+            {isSindico && !ocultarChecklist && (
+              <Card className="p-5 bg-white border-l-[6px] border-l-[#84cc16] shadow-md">
+                <div className="flex justify-between items-start gap-3 mb-3">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[#65a30d]">
+                      Primeiros Passos do Síndico
+                    </p>
+                    <h3 className="text-sm font-black text-slate-800">
+                      Deixe seu condomínio pronto em 2 minutos:
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOcultarChecklist(true);
+                      try {
+                        localStorage.setItem(`condoleve_hide_checklist_${cId}`, '1');
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    className="text-[10px] font-black text-slate-400 hover:text-slate-700 px-2 py-1"
+                  >
+                    Ocultar
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setModalConfig(true)}
+                    className={`p-3 rounded-2xl border text-left transition ${
+                      config.chavePix
+                        ? 'bg-green-50 border-green-200 text-green-900'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-[#84cc16]'
+                    }`}
+                  >
+                    <p className="font-black">
+                      {config.chavePix ? '✓ Chave PIX salva' : '1. Cadastrar Chave PIX'}
+                    </p>
+                    <p className="text-[10px] opacity-80 mt-0.5">
+                      Para os moradores pagarem sem erro
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAbaAtiva('receitas')}
+                    className={`p-3 rounded-2xl border text-left transition ${
+                      unidades.some((u) => u.linked_user_id)
+                        ? 'bg-green-50 border-green-200 text-green-900'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-[#84cc16]'
+                    }`}
+                  >
+                    <p className="font-black">2. Convidar Moradores</p>
+                    <p className="text-[10px] opacity-80 mt-0.5">
+                      Toque em Editar no apto e envie o link
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalNovaDespesa(true)}
+                    className={`p-3 rounded-2xl border text-left transition ${
+                      despesas.length > 0
+                        ? 'bg-green-50 border-green-200 text-green-900'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-[#84cc16]'
+                    }`}
+                  >
+                    <p className="font-black">
+                      {despesas.length > 0 ? '✓ Contas lançadas' : '3. Lançar 1ª Conta'}
+                    </p>
+                    <p className="text-[10px] opacity-80 mt-0.5">
+                      Experimente fotografar a conta com IA
+                    </p>
+                  </button>
+                </div>
+              </Card>
+            )}
+
             <div className="bg-[#1e293b] text-white p-8 rounded-[32px] shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none transform translate-x-1/4 -translate-y-1/4">
                 <PieChartIcon size={200} />
