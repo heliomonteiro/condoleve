@@ -124,6 +124,16 @@ test('Motor de Planos: Trial expirado faz downgrade suave para Free sem perder d
   assert.equal(canUseFeature(subPro, 'upload'), true);
   assert.equal(canUseFeature(subPro, 'ai'), true);
   assert.equal(canUseFeature(subPro, 'inadimplencia'), true);
+
+  const vinteSeteDiasAtras = new Date(Date.now() - 27 * 24 * 60 * 60 * 1000).toISOString();
+  const subProPertoVencer = resolveSubscriptionStatus(
+    { plano: 'pro', status: 'ativo', atualizado_em: vinteSeteDiasAtras },
+    10
+  );
+  assert.equal(subProPertoVencer.proRenewDaysLeft, 3);
+
+  const subAtrasada = resolveSubscriptionStatus({ plano: 'pro', status: 'atrasado' }, 10);
+  assert.equal(subAtrasada.isPaymentOverdue, true);
 });
 
 test('Utilitários de usabilidade: máscara de telefone e tradutor de erros em português', () => {

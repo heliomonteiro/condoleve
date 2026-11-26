@@ -183,6 +183,7 @@ export function SistemaCondominio({
   const [modalInstalar, setModalInstalar] = useState(false);
   const [modalFila, setModalFila] = useState(false);
   const [modalUpgradeMotivo, setModalUpgradeMotivo] = useState(null);
+  const [alertaRenovacaoDispensado, setAlertaRenovacaoDispensado] = useState(false);
   const [confirmacao, setConfirmacao] = useState(null);
   const [printMode, setPrintMode] = useState(null);
 
@@ -1145,6 +1146,46 @@ export function SistemaCondominio({
           </button>
         </div>
       )}
+
+      {/* ALERTA DISCRETO DE VENCIMENTO / RENOVAÇÃO DO PRO */}
+      {isSindico &&
+        !alertaRenovacaoDispensado &&
+        (subscription.isPaymentOverdue ||
+          (subscription.isTrial && subscription.trialDaysLeft <= 5) ||
+          (subscription.effectivePlan === 'pro' && subscription.proRenewDaysLeft !== null)) && (
+          <div className="bg-amber-50 border-b border-amber-200 text-amber-950 px-4 py-2 text-[11px] font-bold flex items-center justify-center gap-2 text-center">
+            <span>
+              {subscription.isPaymentOverdue
+                ? 'Pagamento do CondoLeve Pro pendente — regularize para não perder os recursos Pro.'
+                : subscription.isTrial
+                  ? `Seu período Pro gratuito termina em ${subscription.trialDaysLeft} dia(s) — ative para manter os recursos Pro.`
+                  : `Lembrete: sua renovação do CondoLeve Pro vence em ${subscription.proRenewDaysLeft} dia(s). Mantenha em dia ou economize 20% no plano anual.`}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                solicitarUpgrade(
+                  subscription.isPaymentOverdue
+                    ? 'Regularize sua assinatura para manter os recursos Pro ativos.'
+                    : 'Garanta a continuidade do CondoLeve Pro sem interrupções.'
+                )
+              }
+              className="bg-amber-200 hover:bg-amber-300 text-amber-950 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider shrink-0"
+            >
+              {subscription.isPaymentOverdue ? 'Regularizar' : 'Ver plano'}
+            </button>
+            {!subscription.isPaymentOverdue && (
+              <button
+                type="button"
+                onClick={() => setAlertaRenovacaoDispensado(true)}
+                aria-label="Dispensar lembrete"
+                className="text-amber-700 hover:text-amber-950 px-1 font-black"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
 
       {/* HEADER PADRÃO */}
       <header className="bg-[#1e293b] text-white pt-6 px-6 pb-12 relative overflow-hidden text-center">

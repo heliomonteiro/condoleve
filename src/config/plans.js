@@ -132,6 +132,15 @@ export function resolveSubscriptionStatus(assinatura, unidadesCount = 0) {
 
   // Se já for assinante Pro ativo
   if (assinatura?.plano === 'pro' && assinatura?.status === 'ativo') {
+    const updatedAt = assinatura.atualizado_em ? new Date(assinatura.atualizado_em) : null;
+    let proRenewDaysLeft = null;
+    if (updatedAt && !Number.isNaN(updatedAt.getTime())) {
+      const nextCycleEnd = new Date(updatedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const diffDays = Math.ceil((nextCycleEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays >= 0 && diffDays <= 5) {
+        proRenewDaysLeft = diffDays;
+      }
+    }
     return {
       effectivePlan: 'pro',
       planConfig: PLANS.pro,
@@ -139,6 +148,8 @@ export function resolveSubscriptionStatus(assinatura, unidadesCount = 0) {
       isTrial: false,
       trialDaysLeft: 0,
       trialExpired: false,
+      proRenewDaysLeft,
+      isPaymentOverdue: false,
       aiUsed: Number(assinatura.creditos_ia_usados || 0),
       uploadsUsed: Number(assinatura.arquivos_mes_usados || 0),
       overUnitLimit: unidadesCount > PLANS.pro.limits.maxUnits,
@@ -169,6 +180,8 @@ export function resolveSubscriptionStatus(assinatura, unidadesCount = 0) {
     isTrial: inTrial,
     trialDaysLeft,
     trialExpired: !inTrial && Boolean(assinatura?.trial_ate),
+    proRenewDaysLeft: null,
+    isPaymentOverdue: assinatura?.plano === 'pro' && assinatura?.status === 'atrasado',
     aiUsed: Number(assinatura?.creditos_ia_usados || 0),
     uploadsUsed: Number(assinatura?.arquivos_mes_usados || 0),
     overUnitLimit: unidadesCount > planConfig.limits.maxUnits,
