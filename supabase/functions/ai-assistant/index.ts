@@ -115,14 +115,20 @@ Deno.serve(async (req: Request) => {
 
     // 3. Executa ação no Gemini via REST API (mais leve/rápido primeiro + fallback automático)
     const configuredModel = Deno.env.get('GEMINI_MODEL');
-    const baseModels = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-flash-latest'];
+    const baseModels = [
+      'gemini-2.5-flash-lite',
+      'gemini-flash-lite-latest',
+      'gemini-2.5-flash',
+      'gemini-flash-latest',
+    ];
     const modelsToTry = configuredModel
       ? Array.from(new Set([...baseModels, configuredModel]))
       : baseModels;
 
     async function callGemini(contents: unknown, responseJsonSchema: unknown) {
-      let lastErrorMsg = '';
+      const attemptErrors: string[] = [];
       for (const modelName of modelsToTry) {
+        const t0 = Date.now();
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`;
         try {
           const res = await fetch(geminiUrl, {
@@ -131,7 +137,7 @@ Deno.serve(async (req: Request) => {
               'Content-Type': 'application/json',
               'x-goog-api-key': geminiApiKey!,
             },
-            signal: AbortSignal.timeout(9000),
+            signal: AbortSignal.timeout(15000),
             body: JSON.stringify({
               contents,
               generationConfig: {
@@ -141,13 +147,14 @@ Deno.serve(async (req: Request) => {
             }),
           });
           const json = await res.json();
+          console.log(`[ai-assistant] model=${modelName} status=${res.status} ms=${Date.now() - t0}`);
           if (res.ok) {
             const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
             return JSON.parse(text);
           }
 
-          const msg = json?.error?.message || `Gemini HTTP ${res.status}`;
-          lastErrorMsg = msg;
+          const msg = json?.error?.message || `HTTP ${res.status}`;
+          attemptErrors.push(`${modelName}: ${msg}`);
           const isTransient =
             res.status === 429 ||
             res.status === 503 ||
@@ -158,7 +165,8 @@ Deno.serve(async (req: Request) => {
           }
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : String(err);
-          lastErrorMsg = errMsg;
+          console.log(`[ai-assistant] model=${modelName} err=${errMsg} ms=${Date.now() - t0}`);
+          attemptErrors.push(`${modelName}: ${errMsg}`);
           const isTimeoutOrNetwork =
             /timed out|timeout|abort|network|fetch/i.test(errMsg) ||
             (err instanceof Error && err.name === 'TimeoutError');
@@ -168,7 +176,7 @@ Deno.serve(async (req: Request) => {
         }
       }
       throw new Error(
-        `IA temporariamente indisponível (${lastErrorMsg}). Tente novamente em instantes ou preencha manualmente.`
+        `IA temporariamente indisponível (${attemptErrors[0] || 'timeout'}). Tente novamente em instantes ou preencha manualmente.`
       );
     }
 

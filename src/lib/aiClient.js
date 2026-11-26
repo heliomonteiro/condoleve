@@ -50,7 +50,7 @@ export async function extractDocumentWithAI({
         },
       },
     }),
-    25000,
+    40000,
     'A leitura com IA demorou mais que o esperado. Tente novamente ou preencha os dados manualmente.'
   );
 
@@ -84,7 +84,7 @@ export async function polishNoticeWithAI({
         payload: { titulo, mensagem, tipo },
       },
     }),
-    25000,
+    40000,
     'O assistente de IA demorou para responder. Tente novamente ou escreva o aviso manualmente.'
   );
 
