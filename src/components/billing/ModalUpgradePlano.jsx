@@ -34,7 +34,7 @@ export function ModalUpgradePlano({
   condominioId,
   showToast,
 }) {
-  const [ciclo, setCiclo] = useState('anual');
+  const [ciclo, setCiclo] = useState('mensal');
   const [cpfCnpj, setCpfCnpj] = useState('');
   const [erroCheckout, setErroCheckout] = useState('');
   const [invoiceUrl, setInvoiceUrl] = useState('');
@@ -132,6 +132,17 @@ export function ModalUpgradePlano({
           <div className="bg-slate-100 p-1.5 rounded-2xl flex gap-1">
             <button
               type="button"
+              onClick={() => setCiclo('mensal')}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black transition ${
+                ciclo === 'mensal'
+                  ? 'bg-white text-[#1e293b] shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Mensal (Sem fidelidade)
+            </button>
+            <button
+              type="button"
               onClick={() => setCiclo('anual')}
               className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 ${
                 ciclo === 'anual'
@@ -143,17 +154,6 @@ export function ModalUpgradePlano({
               <span className="bg-green-100 text-green-700 text-[9px] px-2 py-0.5 rounded-full">
                 -20% OFF
               </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setCiclo('mensal')}
-              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black transition ${
-                ciclo === 'mensal'
-                  ? 'bg-white text-[#1e293b] shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              Mensal (Sem fidelidade)
             </button>
           </div>
 
@@ -243,7 +243,10 @@ export function ModalUpgradePlano({
               <RefreshCw size={16} className="animate-spin" />
             ) : (
               <>
-                ATIVAR CONDOLEVE PRO AGORA <ArrowRight size={16} />
+                {ciclo === 'anual'
+                  ? `ATIVAR PRO ANUAL (${formatarMoeda(precoExibido * 12)}/ANO)`
+                  : `ATIVAR PRO MENSAL (${formatarMoeda(precoExibido)}/MÊS)`}{' '}
+                <ArrowRight size={16} />
               </>
             )}
           </button>
