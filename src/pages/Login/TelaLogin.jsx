@@ -7,7 +7,7 @@ import { ModalTermosLGPD } from '../../components/legal/ModalTermosLGPD';
 import { translateError } from '../../utils/errorTranslator';
 import { ShieldCheck, RefreshCw, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
-export function TelaLogin() {
+export function TelaLogin({ initialMode = 'login', onVoltarSite = null }) {
   const { showToast, inviteData } = useAuth();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -15,7 +15,7 @@ export function TelaLogin() {
   const [aceitouTermos, setAceitouTermos] = useState(false);
   const [modalLegal, setModalLegal] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [modo, setModo] = useState('login');
+  const [modo, setModo] = useState(initialMode);
 
   const googleAuthEnabled = import.meta.env.VITE_ENABLE_GOOGLE_AUTH === 'true';
 
@@ -76,7 +76,18 @@ export function TelaLogin() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-sm flex justify-end mb-3">
+      <div className="w-full max-w-sm flex justify-between items-center mb-3">
+        {onVoltarSite ? (
+          <button
+            type="button"
+            onClick={onVoltarSite}
+            className="min-h-[44px] px-3 rounded-xl bg-white border border-slate-200 text-xs font-black text-slate-700 hover:bg-slate-100 transition flex items-center gap-1.5"
+          >
+            <ArrowLeft size={14} /> Voltar ao site
+          </button>
+        ) : (
+          <span />
+        )}
         <BotaoLetraMaior variant="light" />
       </div>
 

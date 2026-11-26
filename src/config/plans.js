@@ -191,7 +191,7 @@ export function getCheckoutLink(condominioNome = '', condominioId = '', ciclo = 
     const sep = customCheckout.includes('?') ? '&' : '?';
     return `${customCheckout}${sep}condominio_id=${encodeURIComponent(condominioId)}&ciclo=${encodeURIComponent(ciclo)}`;
   }
-  const comercialPhone = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_COMERCIAL_WHATSAPP) || '5511999999999';
+  const comercialPhone = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_COMERCIAL_WHATSAPP) || '5534999358189';
   const msg = `Olá! Quero ativar o *CondoLeve Pro (${ciclo})* para o condomínio *${condominioNome || 'Meu Condomínio'}* (ID: ${condominioId}).`;
   return `https://wa.me/${comercialPhone}?text=${encodeURIComponent(msg)}`;
 }
