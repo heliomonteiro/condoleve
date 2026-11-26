@@ -1,0 +1,48 @@
+name: CI & Nightly Database Backup
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    # Backup diário às 03:00 BRT (06:00 UTC) + mantém projeto Free ativo
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  quality:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  db-backup:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump Supabase PostgreSQL (se SUPABASE_DB_URL estiver configurada nos Secrets)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "Secret SUPABASE_DB_URL não configurada; pulando pg_dump."
+            exit 0
+          fi
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges -f "backup_$(date +%Y%m%d).sql"
+          gzip "backup_$(date +%Y%m%d).sql"
+      - name: Armazenar Backup como Artefato Retido por 30 Dias
+        if: env.SUPABASE_DB_URL != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-backup-${{ github.run_id }}
+          path: backup_*.sql.gz
+          retention-days: 30

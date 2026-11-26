@@ -7,23 +7,23 @@ import { useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 
 export default function App() {
-  const { session, contexto, setContexto, toasts, removeToast, showToast } = useAuth();
+  const { session, contexto, setContexto, showToast } = useAuth();
 
   return (
     <>
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
-      {!session ? ( 
-        <TelaLogin /> 
-      ) : !contexto ? ( 
-        <SeletorContexto /> 
-      ) : ( 
-        <SistemaCondominio 
-          supabase={supabase} 
-          session={session} 
-          contexto={contexto} 
-          onSwitch={() => setContexto(null)} 
-          showToast={showToast} 
-        /> 
+      <ToastContainer />
+      {!session ? (
+        <TelaLogin />
+      ) : !contexto ? (
+        <SeletorContexto />
+      ) : (
+        <SistemaCondominio
+          supabase={supabase}
+          session={session}
+          contexto={contexto}
+          onSwitch={() => setContexto(null)}
+          showToast={showToast}
+        />
       )}
     </>
   );

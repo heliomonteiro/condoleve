@@ -2,10 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Estilos globais extras */
-body {
-    background-color: #f8fafc; /* slate-50 */
+/* Modo Letra Conforto (Acessibilidade Sênior 60+) */
+html {
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
 }
+
+html.letra-grande {
+  font-size: 118%;
+}
+
+/* Impede zoom automático involuntário no Safari do iPhone ao tocar em campos de texto */
+@media screen and (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Melhora foco visível por teclado e acessibilidade de toque */
+button,
+a,
+label {
+  touch-action: manipulation;
+}
+
 @media print {
-    body { background-color: white; }
+  .no-print {
+    display: none !important;
+  }
 }
