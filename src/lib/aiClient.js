@@ -1,5 +1,21 @@
 import { fileToBase64 } from './imageCompressor';
 
+async function parseEdgeFunctionError(error, fallbackMsg) {
+  try {
+    if (error?.context && typeof error.context.json === 'function') {
+      const body = await error.context.json();
+      if (body?.error) {
+        const err = new Error(body.error);
+        err.code = body.code;
+        return err;
+      }
+    }
+  } catch {
+    // ignore JSON parse failure
+  }
+  return new Error(error?.message || fallbackMsg);
+}
+
 /**
  * Cliente seguro para o Gateway de IA (Supabase Edge Function `ai-assistant`).
  * Nunca expõe chaves de API de LLM no navegador.
@@ -27,8 +43,9 @@ export async function extractDocumentWithAI({
   });
 
   if (error) {
-    throw new Error(
-      'Serviço de leitura IA indisponível no momento (verifique o deploy da Edge Function ai-assistant).'
+    throw await parseEdgeFunctionError(
+      error,
+      'Não foi possível ler o documento com a IA no momento. Verifique os logs no Supabase.'
     );
   }
   if (data?.error) {
@@ -55,20 +72,11 @@ export async function polishNoticeWithAI({
     },
   });
 
-  // Se a Edge Function ainda não estiver publicada no ambiente de dev, oferece uma melhoria estruturada local cortês
   if (error) {
-    const cleanBody = String(mensagem || '').trim();
-    const cleanTitle = String(titulo || 'Comunicado Importante').trim();
-    const prefix =
-      tipo === 'Urgente'
-        ? 'Prezados moradores,\n\nPedimos especial atenção para a seguinte ocorrência prioritária:\n\n'
-        : 'Prezados moradores,\n\nPara mantermos a boa convivência e organização do nosso condomínio, informamos:\n\n';
-    const suffix = '\n\nContamos com a colaboração e compreensão de todos.\nAtenciosamente,\nAdministração.';
-    return {
-      titulo: cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1),
-      mensagem: `${prefix}${cleanBody}${suffix}`,
-      usedFallback: true,
-    };
+    throw await parseEdgeFunctionError(
+      error,
+      'Não foi possível conectar ao assistente de IA agora. Verifique os logs no Supabase.'
+    );
   }
 
   if (data?.error) {

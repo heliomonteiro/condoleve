@@ -51,8 +51,8 @@ export function CondoLeveLP({ onAcessarSistema, onCriarConta }) {
               <a href="#beneficios" className="text-slate-600 hover:text-lime-600 font-medium transition">
                 Benefícios
               </a>
-              <a href="#como-funciona" className="text-slate-600 hover:text-lime-600 font-medium transition">
-                Como Funciona
+              <a href="#depoimentos" className="text-slate-600 hover:text-lime-600 font-medium transition">
+                Depoimentos
               </a>
               <a href="#planos" className="text-slate-600 hover:text-lime-600 font-medium transition">
                 Planos
@@ -421,9 +421,12 @@ export function CondoLeveLP({ onAcessarSistema, onCriarConta }) {
                   </h3>
                   <span className="text-sm text-slate-400">/mês no plano anual</span>
                 </div>
-                <p className="text-xs text-slate-400 mt-1 mb-4">
+                <p className="text-xs text-slate-400 mt-1 mb-3">
                   Ou {formatarMoeda(PLANS.pro.priceMonthly)}/mês sem fidelidade • Até 120 unidades
                 </p>
+                <div className="bg-lime-500/15 border border-lime-400/30 rounded-2xl p-3.5 mb-5 text-xs text-lime-200 leading-relaxed">
+                  💡 <strong className="text-white">Menos de R$ 2,00 por apartamento</strong> em um prédio de 20 unidades — e você pode lançar como despesa administrativa do próprio condomínio!
+                </div>
                 <ul className="space-y-2 text-sm text-slate-200 mb-6">
                   <li className="flex items-center gap-2">
                     <Zap size={15} className="text-lime-400 shrink-0" /> Cobrança 1-Clique no WhatsApp + Inadimplência
@@ -442,6 +445,52 @@ export function CondoLeveLP({ onAcessarSistema, onCriarConta }) {
                 >
                   TESTAR 30 DIAS GRÁTIS
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* DEPOIMENTOS */}
+      <section id="depoimentos" className="py-20 bg-slate-50 border-t border-slate-100">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <span className="text-xs font-black uppercase tracking-widest text-lime-600">
+              Quem usa no dia a dia
+            </span>
+            <h2 className="text-3xl font-bold text-slate-900 mt-2">
+              Feito para quem cuida do prédio sem complicação
+            </h2>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            <div className="bg-white p-7 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+              <p className="text-sm text-slate-600 leading-relaxed mb-6">
+                &ldquo;Eu anotava tudo num caderninho e tinha medo de mexer em aplicativo. Com o botão de <strong>letra maior (A+)</strong> e a prestação de contas pronta em imagem, fecho o mês em 10 minutos e mando no grupo.&rdquo;
+              </p>
+              <div>
+                <p className="font-black text-slate-900 text-sm">Seu Antônio, 68 anos</p>
+                <p className="text-xs text-slate-500 font-semibold">Síndico • Edifício de 12 aptos</p>
+              </div>
+            </div>
+
+            <div className="bg-white p-7 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+              <p className="text-sm text-slate-600 leading-relaxed mb-6">
+                &ldquo;O que me encantou foi a <strong>IA</strong>! Eu tiro foto da conta de luz e ela já preenche valor e data sozinha. E quando tô sem paciência com barulho, ela reescreve meu aviso super educado pra eu não brigar com vizinho.&rdquo;
+              </p>
+              <div>
+                <p className="font-black text-slate-900 text-sm">Cláudia M., 54 anos</p>
+                <p className="text-xs text-slate-500 font-semibold">Síndica • Condomínio de 16 aptos</p>
+              </div>
+            </div>
+
+            <div className="bg-white p-7 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+              <p className="text-sm text-slate-600 leading-relaxed mb-6">
+                &ldquo;Antes eu ligava pro meu filho toda vez para pagar o condomínio. Aqui eu aperto em copiar o PIX e aparece um quadrinho me ensinando passo a passo onde colar no banco. Me sinto independente!&rdquo;
+              </p>
+              <div>
+                <p className="font-black text-slate-900 text-sm">Dona Tereza, 74 anos</p>
+                <p className="text-xs text-slate-500 font-semibold">Moradora • Apto 102</p>
               </div>
             </div>
           </div>

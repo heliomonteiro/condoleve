@@ -116,7 +116,7 @@ Deno.serve(async (req: Request) => {
 
     // 3. Executa ação no Gemini com Structured Output (JSON Schema)
     const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-    const modelName = Deno.env.get('GEMINI_MODEL') || 'gemini-3-flash-preview';
+    const modelName = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash';
     let resultData: unknown = null;
 
     if (action === 'extract_document') {
