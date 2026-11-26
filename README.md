@@ -6,7 +6,7 @@ Plataforma SaaS web/PWA construída em **React 19 + Vite + Tailwind CSS + Supaba
 
 ## Matriz Comercial & Unit Economics (`src/config/plans.js`)
 
-| Recurso | Plano Grátis (`free`) | Degustação 30 Dias (`trial`) | CondoLeve Pro (`pro` - R$ 49,90/mês) |
+| Recurso | Plano Grátis (`free`) | Degustação 30 Dias (`trial`) | CondoLeve Pro (`pro` - R$ 29,90/mês) |
 | :--- | :---: | :---: | :---: |
 | **Unidades por condomínio** | Até **8 aptos** | Até 30 aptos | Até **30 aptos** (31+: *CondoLeve Mais* em breve) |
 | **Livro-caixa (Receitas/Despesas texto)** | Ilimitado | Ilimitado | Ilimitado |

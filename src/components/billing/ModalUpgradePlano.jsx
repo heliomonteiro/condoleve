@@ -115,7 +115,7 @@ export function ModalUpgradePlano({
             {motivo || 'Desbloqueie a Gestão Completa do Seu Prédio'}
           </h3>
           <p className="text-xs text-slate-300 mt-1.5 font-medium leading-relaxed">
-            Menos de R$ 2,00 por apartamento em um prédio de 20 unidades — 10x mais barato que uma administradora.
+            Menos de R$ 1,50 por apartamento em um prédio de 20 unidades — muito mais barato que uma administradora.
           </p>
 
           {subscription?.isTrial && (
@@ -152,7 +152,7 @@ export function ModalUpgradePlano({
             >
               Anual{' '}
               <span className="bg-green-100 text-green-700 text-[9px] px-2 py-0.5 rounded-full">
-                -20% OFF
+                2 MESES GRÁTIS
               </span>
             </button>
           </div>
@@ -160,9 +160,14 @@ export function ModalUpgradePlano({
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Valor único por condomínio
+                Oferta de lançamento • Por condomínio
               </p>
-              <div className="flex items-baseline gap-1 mt-0.5">
+              <div className="flex items-baseline gap-1.5 mt-0.5">
+                {ciclo === 'mensal' && (
+                  <span className="text-xs font-bold text-slate-400 line-through">
+                    R$ 49,90
+                  </span>
+                )}
                 <span className="text-3xl font-black text-[#1e293b]">
                   {formatarMoeda(precoExibido)}
                 </span>
@@ -170,7 +175,7 @@ export function ModalUpgradePlano({
               </div>
               <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
                 {ciclo === 'anual'
-                  ? `Cobrado anualmente (${formatarMoeda(precoExibido * 12)}/ano) • Economia de R$ 120`
+                  ? `Cobrado anualmente (${formatarMoeda(precoExibido * 12)}/ano) • Economia de R$ 60`
                   : 'Cancele quando quiser, seus dados nunca são apagados'}
               </p>
             </div>

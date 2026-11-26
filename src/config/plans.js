@@ -53,8 +53,8 @@ export const PLANS = {
     id: 'pro',
     name: 'CondoLeve Pro',
     badge: 'PRO',
-    priceMonthly: 49.9,
-    priceYearlyMonthlyEq: 39.9,
+    priceMonthly: 29.9,
+    priceYearlyMonthlyEq: 24.9,
     tagline: 'Gestão completa para prédios de até 30 unidades.',
     limits: {
       maxUnits: 30,

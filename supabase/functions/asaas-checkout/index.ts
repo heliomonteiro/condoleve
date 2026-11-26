@@ -96,7 +96,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 2. Cria assinatura recorrente (R$ 49,90 mensal ou R$ 478,80 anual = R$ 39,90/mês)
+    // 2. Cria assinatura recorrente (R$ 29,90 mensal lançamento ou R$ 298,80 anual = R$ 24,90/mês)
     const isAnual = ciclo === 'anual';
     const nextDueDate = new Date().toISOString().split('T')[0];
 
@@ -106,7 +106,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         customer: customerData.id,
         billingType: 'UNDEFINED', // Permite ao síndico escolher PIX, Boleto ou Cartão na tela do Asaas
-        value: isAnual ? 478.8 : 49.9,
+        value: isAnual ? 298.8 : 29.9,
         nextDueDate,
         cycle: isAnual ? 'YEARLY' : 'MONTHLY',
         description: `CondoLeve Pro (${isAnual ? 'Anual' : 'Mensal'}) - ${condominioNome || 'Condomínio'}`,
