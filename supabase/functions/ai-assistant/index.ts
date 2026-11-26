@@ -5,7 +5,6 @@
 // ============================================================================
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { GoogleGenAI, Type } from 'npm:@google/genai';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -114,9 +113,34 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 3. Executa ação no Gemini com Structured Output (JSON Schema)
-    const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-    const modelName = Deno.env.get('GEMINI_MODEL') || 'gemini-3.8-flash';
+    // 3. Executa ação no Gemini via REST API (rápido e sem cold-start de SDK em Deno)
+    const modelName = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash';
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`;
+
+    async function callGemini(contents: unknown, responseJsonSchema: unknown) {
+      const res = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': geminiApiKey!,
+        },
+        signal: AbortSignal.timeout(20000),
+        body: JSON.stringify({
+          contents,
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseSchema: responseJsonSchema,
+          },
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error?.message || `Gemini HTTP ${res.status}`);
+      }
+      const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      return JSON.parse(text);
+    }
+
     let resultData: unknown = null;
 
     if (action === 'extract_document') {
@@ -128,9 +152,8 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: [
+      resultData = await callGemini(
+        [
           {
             role: 'user',
             parts: [
@@ -146,56 +169,54 @@ Deno.serve(async (req: Request) => {
             ],
           },
         ],
-        config: {
-          responseMimeType: 'application/json',
-          responseJsonSchema: {
-            type: Type.OBJECT,
-            properties: {
-              descricao: {
-                type: Type.STRING,
-                description: 'Descrição curta (ex: Conta de Água Sabesp, Comprovante PIX).',
-              },
-              valor: {
-                type: Type.NUMBER,
-                description: 'Valor total em reais (ex: 189.90).',
-              },
-              dataISO: {
-                type: Type.STRING,
-                description: 'Data de vencimento ou pagamento no formato YYYY-MM-DD.',
-              },
-              categoriaSugerida: {
-                type: Type.STRING,
-                description: 'Categoria mais adequada dentre as disponíveis.',
-              },
+        {
+          type: 'OBJECT',
+          properties: {
+            descricao: {
+              type: 'STRING',
+              description: 'Descrição curta (ex: Conta de Água Sabesp, Comprovante PIX).',
             },
-            propertyOrdering: ['descricao', 'valor', 'dataISO', 'categoriaSugerida'],
+            valor: {
+              type: 'NUMBER',
+              description: 'Valor total em reais (ex: 189.90).',
+            },
+            dataISO: {
+              type: 'STRING',
+              description: 'Data de vencimento ou pagamento no formato YYYY-MM-DD.',
+            },
+            categoriaSugerida: {
+              type: 'STRING',
+              description: 'Categoria mais adequada dentre as disponíveis.',
+            },
           },
-        },
-      });
-
-      resultData = JSON.parse(response.text || '{}');
+          required: ['descricao', 'valor', 'dataISO', 'categoriaSugerida'],
+        }
+      );
     } else if (action === 'polish_message') {
       const { titulo = '', mensagem = '', tipo = 'Aviso' } = payload || {};
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: `Você é um assistente especialista em comunicação condominial brasileira. Reescreva o rascunho abaixo para torná-lo claro, educado, impessoal, objetivo e firme na medida certa, preservando todas as informações factuais. Tipo: ${tipo}.\nTítulo atual: ${titulo}\nMensagem atual: ${mensagem}`,
-        config: {
-          responseMimeType: 'application/json',
-          responseJsonSchema: {
-            type: Type.OBJECT,
-            properties: {
-              titulo: { type: Type.STRING, description: 'Título claro e objetivo.' },
-              mensagem: {
-                type: Type.STRING,
-                description: 'Texto cordial, claro e profissional para os moradores.',
+      resultData = await callGemini(
+        [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: `Você é um assistente especialista em comunicação condominial brasileira. Reescreva o rascunho abaixo para torná-lo claro, educado, impessoal, objetivo e firme na medida certa, preservando todas as informações factuais. Tipo: ${tipo}.\nTítulo atual: ${titulo}\nMensagem atual: ${mensagem}`,
               },
-            },
-            propertyOrdering: ['titulo', 'mensagem'],
+            ],
           },
-        },
-      });
-
-      resultData = JSON.parse(response.text || '{}');
+        ],
+        {
+          type: 'OBJECT',
+          properties: {
+            titulo: { type: 'STRING', description: 'Título claro e objetivo.' },
+            mensagem: {
+              type: 'STRING',
+              description: 'Texto cordial, claro e profissional para os moradores.',
+            },
+          },
+          required: ['titulo', 'mensagem'],
+        }
+      );
     } else {
       return Response.json({ error: 'Ação desconhecida.' }, { status: 400, headers: corsHeaders });
     }
