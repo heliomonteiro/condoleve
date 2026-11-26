@@ -1,5 +1,13 @@
 import { fileToBase64 } from './imageCompressor';
 
+function withTimeout(promise, ms, timeoutMessage) {
+  let timer;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+}
+
 async function parseEdgeFunctionError(error, fallbackMsg) {
   try {
     if (error?.context && typeof error.context.json === 'function') {
@@ -30,17 +38,21 @@ export async function extractDocumentWithAI({
   const mimeType =
     file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/webp');
 
-  const { data, error } = await supabase.functions.invoke('ai-assistant', {
-    body: {
-      action: 'extract_document',
-      condominioId,
-      payload: {
-        base64Data,
-        mimeType,
-        categorias,
+  const { data, error } = await withTimeout(
+    supabase.functions.invoke('ai-assistant', {
+      body: {
+        action: 'extract_document',
+        condominioId,
+        payload: {
+          base64Data,
+          mimeType,
+          categorias,
+        },
       },
-    },
-  });
+    }),
+    25000,
+    'A leitura com IA demorou mais que o esperado. Tente novamente ou preencha os dados manualmente.'
+  );
 
   if (error) {
     throw await parseEdgeFunctionError(
@@ -64,13 +76,17 @@ export async function polishNoticeWithAI({
   mensagem,
   tipo = 'Aviso',
 }) {
-  const { data, error } = await supabase.functions.invoke('ai-assistant', {
-    body: {
-      action: 'polish_message',
-      condominioId,
-      payload: { titulo, mensagem, tipo },
-    },
-  });
+  const { data, error } = await withTimeout(
+    supabase.functions.invoke('ai-assistant', {
+      body: {
+        action: 'polish_message',
+        condominioId,
+        payload: { titulo, mensagem, tipo },
+      },
+    }),
+    25000,
+    'O assistente de IA demorou para responder. Tente novamente ou escreva o aviso manualmente.'
+  );
 
   if (error) {
     throw await parseEdgeFunctionError(

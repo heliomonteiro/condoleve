@@ -113,32 +113,51 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 3. Executa ação no Gemini via REST API (rápido e sem cold-start de SDK em Deno)
-    const modelName = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash';
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`;
+    // 3. Executa ação no Gemini via REST API com fallback automático em caso de pico/sobrecarga
+    const primaryModel = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash';
+    const fallbackModels = ['gemini-2.5-flash-lite', 'gemini-flash-latest'].filter(
+      (m) => m !== primaryModel
+    );
+    const modelsToTry = [primaryModel, ...fallbackModels];
 
     async function callGemini(contents: unknown, responseJsonSchema: unknown) {
-      const res = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': geminiApiKey!,
-        },
-        signal: AbortSignal.timeout(20000),
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: responseJsonSchema,
+      let lastErrorMsg = '';
+      for (const modelName of modelsToTry) {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`;
+        const res = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': geminiApiKey!,
           },
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json?.error?.message || `Gemini HTTP ${res.status}`);
+          signal: AbortSignal.timeout(15000),
+          body: JSON.stringify({
+            contents,
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: responseJsonSchema,
+            },
+          }),
+        });
+        const json = await res.json();
+        if (res.ok) {
+          const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+          return JSON.parse(text);
+        }
+
+        const msg = json?.error?.message || `Gemini HTTP ${res.status}`;
+        lastErrorMsg = msg;
+        const isTransient =
+          res.status === 429 ||
+          res.status === 503 ||
+          /high demand|overloaded|unavailable|quota|rate limit/i.test(msg);
+        if (!isTransient) {
+          throw new Error(msg);
+        }
       }
-      const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-      return JSON.parse(text);
+      throw new Error(
+        `IA temporariamente sobrecarregada (${lastErrorMsg}). Tente novamente em instantes ou preencha manualmente.`
+      );
     }
 
     let resultData: unknown = null;
