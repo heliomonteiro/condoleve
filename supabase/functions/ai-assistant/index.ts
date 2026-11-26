@@ -113,50 +113,62 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 3. Executa ação no Gemini via REST API com fallback automático em caso de pico/sobrecarga
-    const primaryModel = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash';
-    const fallbackModels = ['gemini-2.5-flash-lite', 'gemini-flash-latest'].filter(
-      (m) => m !== primaryModel
-    );
-    const modelsToTry = [primaryModel, ...fallbackModels];
+    // 3. Executa ação no Gemini via REST API (mais leve/rápido primeiro + fallback automático)
+    const configuredModel = Deno.env.get('GEMINI_MODEL');
+    const baseModels = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-flash-latest'];
+    const modelsToTry = configuredModel
+      ? Array.from(new Set([...baseModels, configuredModel]))
+      : baseModels;
 
     async function callGemini(contents: unknown, responseJsonSchema: unknown) {
       let lastErrorMsg = '';
       for (const modelName of modelsToTry) {
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`;
-        const res = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': geminiApiKey!,
-          },
-          signal: AbortSignal.timeout(15000),
-          body: JSON.stringify({
-            contents,
-            generationConfig: {
-              responseMimeType: 'application/json',
-              responseSchema: responseJsonSchema,
+        try {
+          const res = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': geminiApiKey!,
             },
-          }),
-        });
-        const json = await res.json();
-        if (res.ok) {
-          const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-          return JSON.parse(text);
-        }
+            signal: AbortSignal.timeout(9000),
+            body: JSON.stringify({
+              contents,
+              generationConfig: {
+                responseMimeType: 'application/json',
+                responseSchema: responseJsonSchema,
+              },
+            }),
+          });
+          const json = await res.json();
+          if (res.ok) {
+            const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+            return JSON.parse(text);
+          }
 
-        const msg = json?.error?.message || `Gemini HTTP ${res.status}`;
-        lastErrorMsg = msg;
-        const isTransient =
-          res.status === 429 ||
-          res.status === 503 ||
-          /high demand|overloaded|unavailable|quota|rate limit/i.test(msg);
-        if (!isTransient) {
-          throw new Error(msg);
+          const msg = json?.error?.message || `Gemini HTTP ${res.status}`;
+          lastErrorMsg = msg;
+          const isTransient =
+            res.status === 429 ||
+            res.status === 503 ||
+            res.status === 404 ||
+            /high demand|overloaded|unavailable|quota|rate limit|not found/i.test(msg);
+          if (!isTransient) {
+            throw new Error(msg);
+          }
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          lastErrorMsg = errMsg;
+          const isTimeoutOrNetwork =
+            /timed out|timeout|abort|network|fetch/i.test(errMsg) ||
+            (err instanceof Error && err.name === 'TimeoutError');
+          if (!isTimeoutOrNetwork) {
+            throw err;
+          }
         }
       }
       throw new Error(
-        `IA temporariamente sobrecarregada (${lastErrorMsg}). Tente novamente em instantes ou preencha manualmente.`
+        `IA temporariamente indisponível (${lastErrorMsg}). Tente novamente em instantes ou preencha manualmente.`
       );
     }
 
