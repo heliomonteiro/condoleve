@@ -51,6 +51,7 @@ export function ModoMorador({
   condominioId,
   config,
   onExit,
+  onLogout,
   mesAtual,
   anoAtual,
   getPagamentosMes,
@@ -846,6 +847,7 @@ export function ModoMorador({
           showToast={showToast}
           supabase={supabase}
           onSair={onExit}
+          onLogout={onLogout}
         />
       )}
       {modalInstalar && <ModalInstalarApp onClose={() => setModalInstalar(false)} />}
@@ -854,7 +856,7 @@ export function ModoMorador({
   );
 }
 
-export function ModalConfiguracoesMorador({ onClose, showToast, supabase, onSair }) {
+export function ModalConfiguracoesMorador({ onClose, showToast, supabase, onSair, onLogout }) {
   const [novaSenha, setNovaSenha] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [loadingSenha, setLoadingSenha] = useState(false);
@@ -928,13 +930,24 @@ export function ModalConfiguracoesMorador({ onClose, showToast, supabase, onSair
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={onSair}
-          className="w-full bg-red-50 text-red-600 py-4 rounded-xl font-black text-xs hover:bg-red-100 border border-red-200 transition flex items-center justify-center gap-2"
-        >
-          <LogOut size={16} /> TROCAR / SAIR DO CONDOMÍNIO
-        </button>
+        <div className="space-y-2.5">
+          <button
+            type="button"
+            onClick={onSair}
+            className="w-full min-h-[46px] bg-slate-100 text-slate-700 py-3 rounded-xl font-black text-xs hover:bg-slate-200 transition flex items-center justify-center gap-2"
+          >
+            Trocar de Condomínio
+          </button>
+          {onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="w-full min-h-[46px] bg-red-50 text-red-600 py-3 rounded-xl font-black text-xs hover:bg-red-100 border border-red-200 transition flex items-center justify-center gap-2"
+            >
+              <LogOut size={16} /> SAIR DA CONTA (LOGOUT)
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

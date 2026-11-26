@@ -40,6 +40,7 @@ import {
   ShieldCheck,
   Sparkles,
   BookOpen,
+  LogOut,
 } from 'lucide-react';
 import { Logo } from '../../components/ui/Logo';
 import { Card } from '../../components/ui/Card';
@@ -99,7 +100,14 @@ const generateConicGradient = (data, total) => {
   return gradient.slice(0, -2) + ')';
 };
 
-export function SistemaCondominio({ supabase, session, contexto, onSwitch, showToast }) {
+export function SistemaCondominio({
+  supabase,
+  session,
+  contexto,
+  onSwitch,
+  onLogout,
+  showToast,
+}) {
   const [loading, setLoading] = useState(true);
   const cId = contexto.condominio_id || 'default';
 
@@ -912,6 +920,7 @@ export function SistemaCondominio({ supabase, session, contexto, onSwitch, showT
               onSwitch();
             }
           }}
+          onLogout={onLogout}
           mesAtual={mesAtual}
           anoAtual={anoAtual}
           getPagamentosMes={getPagamentosMes}
@@ -1025,9 +1034,21 @@ export function SistemaCondominio({ supabase, session, contexto, onSwitch, showT
             <button
               type="button"
               onClick={() => setModalConfig(true)}
+              aria-label="Ajustes e Plano"
               className="bg-white/10 hover:bg-white/20 p-2 rounded-xl transition flex items-center gap-2"
             >
               <Settings size={18} />
+            </button>
+          )}
+          {onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              title="Sair da conta"
+              aria-label="Sair da conta"
+              className="bg-red-500/20 hover:bg-red-500/30 text-red-300 p-2 rounded-xl transition flex items-center gap-1"
+            >
+              <LogOut size={18} />
             </button>
           )}
         </div>
@@ -2041,6 +2062,7 @@ export function SistemaCondominio({ supabase, session, contexto, onSwitch, showT
           subscription={subscription}
           onRequestUpgrade={solicitarUpgrade}
           unidadesCount={unidades.length}
+          onLogout={onLogout}
         />
       )}
 

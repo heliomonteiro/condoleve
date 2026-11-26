@@ -14,7 +14,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-export function SeletorContexto() {
+export function SeletorContexto({ skipAutoSelect = false }) {
   const { session, showToast, inviteData, setInviteData, setContexto } = useAuth();
   const [vinculos, setVinculos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +76,7 @@ export function SeletorContexto() {
 
         if (data && data.length > 0) {
           setVinculos(data);
-          if (data.length === 1) setContexto(data[0]);
+          if (data.length === 1 && !skipAutoSelect) setContexto(data[0]);
         } else {
           const { data: config } = await supabase
             .from('config_geral')
@@ -108,7 +108,7 @@ export function SeletorContexto() {
     return () => {
       active = false;
     };
-  }, [inviteData, session.user.email, session.user.id, setContexto, setInviteData, showToast]);
+  }, [inviteData, session.user.email, session.user.id, setContexto, setInviteData, showToast, skipAutoSelect]);
 
   if (loading) {
     return (

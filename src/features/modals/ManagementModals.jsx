@@ -30,6 +30,7 @@ import {
   Eye,
   EyeOff,
   History,
+  LogOut,
 } from 'lucide-react';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { maskPhone, generateId, INFO_UTEIS_PADRAO } from '../../utils/helpers';
@@ -774,6 +775,7 @@ export function ModalConfiguracoes({
   subscription,
   onRequestUpgrade,
   unidadesCount = 0,
+  onLogout,
 }) {
   const [local, setLocal] = useState({ ...config });
   const [activeTab, setActiveTab] = useState('geral');
@@ -1004,6 +1006,16 @@ export function ModalConfiguracoes({
                   SALVAR NOVA SENHA
                 </button>
               </div>
+
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="w-full min-h-[48px] bg-red-50 text-red-600 py-3.5 rounded-2xl font-black text-xs hover:bg-red-100 border border-red-200 transition flex items-center justify-center gap-2"
+                >
+                  <LogOut size={16} /> SAIR DA MINHA CONTA (LOGOUT)
+                </button>
+              )}
             </div>
           )}
 

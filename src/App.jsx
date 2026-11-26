@@ -12,6 +12,7 @@ export default function App() {
   // Se o usuário veio por link de convite (?invite= / ?convite=), abre direto no Login; senão, apresenta a Landing Page
   const [authView, setAuthView] = useState(() => (inviteData ? 'login' : 'landing'));
   const [loginInitialMode, setLoginInitialMode] = useState('login');
+  const [skipAutoSelect, setSkipAutoSelect] = useState(false);
 
   return (
     <>
@@ -35,13 +36,22 @@ export default function App() {
           />
         )
       ) : !contexto ? (
-        <SeletorContexto />
+        <SeletorContexto skipAutoSelect={skipAutoSelect} />
       ) : (
         <SistemaCondominio
           supabase={supabase}
           session={session}
           contexto={contexto}
-          onSwitch={() => setContexto(null)}
+          onSwitch={() => {
+            setSkipAutoSelect(true);
+            setContexto(null);
+          }}
+          onLogout={async () => {
+            setSkipAutoSelect(false);
+            setContexto(null);
+            await supabase.auth.signOut();
+            showToast('Você saiu da sua conta com segurança.');
+          }}
           showToast={showToast}
         />
       )}
