@@ -497,6 +497,52 @@ export function CondoLeveLP({ onAcessarSistema, onCriarConta }) {
         </div>
       </section>
 
+      {/* PERGUNTAS FREQUENTES (SEO + Tira-Dúvidas) */}
+      <section id="duvidas" className="py-20 bg-white border-t border-slate-100">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-slate-900">Perguntas Frequentes</h2>
+            <p className="text-slate-500 mt-2">
+              Tudo o que síndicos e moradores costumam perguntar antes de começar
+            </p>
+          </div>
+          <div className="space-y-4">
+            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200">
+              <h3 className="font-bold text-slate-900 text-base mb-1.5">
+                O CondoLeve serve para prédio pequeno sem administradora ou sem CNPJ?
+              </h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Sim! O CondoLeve foi criado exatamente para prédios, vilas e conjuntos de 4 a 40 apartamentos onde um próprio morador cuida das contas no dia a dia, com ou sem CNPJ.
+              </p>
+            </div>
+            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200">
+              <h3 className="font-bold text-slate-900 text-base mb-1.5">
+                É realmente grátis ou tem pegadinha depois de 30 dias?
+              </h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Condomínios com até <strong>8 unidades</strong> podem usar o plano gratuito para sempre (livro-caixa, recibos, mural e acesso dos moradores). Todo condomínio novo também ganha 30 dias grátis do Plano Pro sem precisar cadastrar cartão — e seus dados nunca são apagados.
+              </p>
+            </div>
+            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200">
+              <h3 className="font-bold text-slate-900 text-base mb-1.5">
+                Pessoas mais velhas ou com pouca prática em celular conseguem usar?
+              </h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Sim! O app possui o botão <strong>A+ (Letra Maior)</strong>, textos diretos em português, confirmação antes de apagar qualquer dado e até um guia passo a passo explicando ao morador como colar o PIX no banco.
+              </p>
+            </div>
+            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200">
+              <h3 className="font-bold text-slate-900 text-base mb-1.5">
+                Como o CondoLeve protege os dados dos moradores (LGPD)?
+              </h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Cada morador vê apenas seus próprios recibos e dados. Na hora de gerar a Prestação de Contas em imagem para o grupo do WhatsApp, o <strong>Modo LGPD</strong> oculta quem está devendo para evitar exposição vexatória.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA FINAL */}
       <section className="py-20 bg-slate-900 text-white text-center">
         <div className="max-w-4xl mx-auto px-4">

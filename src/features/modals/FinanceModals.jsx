@@ -1174,7 +1174,7 @@ export function ModalRelatorio({
             {/* RODAPÉ */}
             <div className="text-center pt-6 mt-6 border-t border-slate-200">
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center justify-center gap-2">
-                <Building size={10} /> Prestação de Contas CondoLeve • Adequada à LGPD • Gerado em:{' '}
+                <Building size={10} /> Prestação de Contas CondoLeve • condoleve.drafthub.com.br •{' '}
                 {new Date().toLocaleString('pt-BR')}
               </p>
             </div>

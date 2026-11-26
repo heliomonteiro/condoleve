@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://condoleve.drafthub.com.br/sitemap.xml

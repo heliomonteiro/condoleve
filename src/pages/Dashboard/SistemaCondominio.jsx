@@ -430,7 +430,7 @@ export function SistemaCondominio({
 
   const enviarReciboWhatsApp = (pagamento, unidade) => {
     const hashExibicao = pagamento.hash_recibo || 'N/A';
-    const texto = `🧾 *RECIBO DE PAGAMENTO*\n\n🏢 Condomínio: *${config.predioNome}*\n🏠 Unidade: *${unidade.numero}*\n💰 Valor Recebido: *${fmt(pagamento.valor)}*\n📅 Data de Pagamento: *${pagamento.data}*\n\n✅ Pagamento confirmado pelo síndico.\n🔐 Autenticidade: ${hashExibicao}\n\n_Gerado pelo app CondoLeve_`;
+    const texto = `🧾 *RECIBO DE PAGAMENTO*\n\n🏢 Condomínio: *${config.predioNome}*\n🏠 Unidade: *${unidade.numero}*\n💰 Valor Recebido: *${fmt(pagamento.valor)}*\n📅 Data de Pagamento: *${pagamento.data}*\n\n✅ Pagamento confirmado pelo síndico.\n🔐 Autenticidade: ${hashExibicao}\n\n_Gerado pelo CondoLeve • https://condoleve.drafthub.com.br_`;
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank');
   };
 
