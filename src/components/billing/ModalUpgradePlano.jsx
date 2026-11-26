@@ -13,6 +13,19 @@ import { PLANS, PRO_HIGHLIGHTS, getCheckoutLink } from '../../config/plans';
 import { formatarMoeda } from '../../utils/helpers';
 import { supabase } from '../../lib/supabase';
 
+async function extractFunctionError(error, data) {
+  if (data?.error) return data.error;
+  try {
+    if (error?.context && typeof error.context.json === 'function') {
+      const parsed = await error.context.json();
+      if (parsed?.error) return parsed.error;
+    }
+  } catch {
+    // ignore
+  }
+  return error?.message || 'Não foi possível gerar a cobrança automática agora.';
+}
+
 export function ModalUpgradePlano({
   onClose,
   motivo = null,
@@ -22,6 +35,8 @@ export function ModalUpgradePlano({
   showToast,
 }) {
   const [ciclo, setCiclo] = useState('anual');
+  const [cpfCnpj, setCpfCnpj] = useState('');
+  const [erroCheckout, setErroCheckout] = useState('');
   const [loadingCheckout, setLoadingCheckout] = useState(false);
   const precoExibido =
     ciclo === 'anual' ? PLANS.pro.priceYearlyMonthlyEq : PLANS.pro.priceMonthly;
@@ -31,32 +46,44 @@ export function ModalUpgradePlano({
     import.meta.env &&
     import.meta.env.VITE_ASAAS_ENABLED === 'true';
 
+  const abrirWhatsAppFallback = () => {
+    const url = getCheckoutLink(condominioNome, condominioId, ciclo);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   const abrirCheckout = async () => {
+    setErroCheckout('');
     if (asaasEnabled) {
+      const digits = cpfCnpj.replace(/\D/g, '');
+      if (digits.length !== 11 && digits.length !== 14) {
+        setErroCheckout('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido para emitir a fatura.');
+        return;
+      }
+
       setLoadingCheckout(true);
       try {
         const { data, error } = await supabase.functions.invoke('asaas-checkout', {
-          body: { condominioId, condominioNome, ciclo },
+          body: { condominioId, condominioNome, ciclo, cpfCnpj: digits },
         });
         if (!error && data?.invoiceUrl) {
           window.open(data.invoiceUrl, '_blank', 'noopener,noreferrer');
           return;
         }
-        if (error || data?.error) {
-          showToast?.(
-            data?.error || 'Abrindo atendimento direto no WhatsApp para ativação imediata.',
-            'error'
-          );
-        }
-      } catch {
-        // Fallback para WhatsApp / VITE_CHECKOUT_URL
+        const msg = await extractFunctionError(error, data);
+        setErroCheckout(msg);
+        showToast?.(msg, 'error');
+        return;
+      } catch (err) {
+        const msg = err?.message || 'Falha ao conectar ao checkout automático.';
+        setErroCheckout(msg);
+        showToast?.(msg, 'error');
+        return;
       } finally {
         setLoadingCheckout(false);
       }
     }
 
-    const url = getCheckoutLink(condominioNome, condominioId, ciclo);
-    window.open(url, '_blank', 'noopener,noreferrer');
+    abrirWhatsAppFallback();
   };
 
   return (
@@ -155,6 +182,30 @@ export function ModalUpgradePlano({
             </div>
           </div>
 
+          {asaasEnabled && (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+              <label className="block">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  CPF do Síndico ou CNPJ do Condomínio (para Nota Fiscal e PIX/Boleto)
+                </span>
+                <input
+                  value={cpfCnpj}
+                  onChange={(e) => {
+                    setCpfCnpj(e.target.value);
+                    if (erroCheckout) setErroCheckout('');
+                  }}
+                  placeholder="000.000.000-00 ou 00.000.000/0001-00"
+                  className="w-full border border-slate-200 bg-white p-3 rounded-xl text-sm font-bold outline-none focus:border-[#84cc16] mt-1"
+                />
+              </label>
+              {erroCheckout && (
+                <p className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 p-2.5 rounded-xl">
+                  {erroCheckout}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="space-y-3">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
               <Sparkles size={12} className="text-[#84cc16]" /> Tudo do plano Grátis + Recursos Pro:
@@ -186,6 +237,15 @@ export function ModalUpgradePlano({
               </>
             )}
           </button>
+          {asaasEnabled && (
+            <button
+              type="button"
+              onClick={abrirWhatsAppFallback}
+              className="w-full text-[11px] font-bold text-slate-500 hover:text-slate-800 underline py-1"
+            >
+              Prefiro falar pelo WhatsApp antes de pagar
+            </button>
+          )}
           <p className="text-[10px] text-center text-slate-400 font-bold flex items-center justify-center gap-1">
             <ShieldCheck size={12} className="text-green-600" /> Pagamento via PIX ou Cartão • Nota
             fiscal p/ prestação de contas
