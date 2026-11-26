@@ -38,7 +38,7 @@ export const PLANS = {
     priceYearlyMonthlyEq: 0,
     tagline: 'Acesso completo liberado para testar no seu prédio.',
     limits: {
-      maxUnits: 60,
+      maxUnits: 30,
       maxStorageUploadsPerMonth: 30, // Protege contra abuso em contas teste (~3MB c/ WebP)
       maxAiCreditsPerMonth: 10,      // 10 usos grátis p/ o síndico ver a mágica da IA
       allowInadimplenciaAcumulada: true,
@@ -55,10 +55,10 @@ export const PLANS = {
     badge: 'PRO',
     priceMonthly: 49.9,
     priceYearlyMonthlyEq: 39.9,
-    tagline: 'Gestão completa, cobrança em 1 clique, anexos na nuvem e IA.',
+    tagline: 'Gestão completa para prédios de até 30 unidades.',
     limits: {
-      maxUnits: 120,
-      maxStorageUploadsPerMonth: 500, // ~50MB/mês em WebP -> altíssima margem
+      maxUnits: 30,
+      maxStorageUploadsPerMonth: 300, // ~30MB/mês em WebP -> altíssima margem
       maxAiCreditsPerMonth: 150,      // Custo real Gemini Flash < R$ 0,60/mês
       allowInadimplenciaAcumulada: true,
       allowWhatsAppCobranca1Click: true,
@@ -73,8 +73,8 @@ export const PLANS = {
 export const PRO_HIGHLIGHTS = [
   {
     key: 'unidades',
-    title: 'Mais de 8 apartamentos',
-    desc: 'Suporte para condomínios de até 120 unidades com histórico completo.',
+    title: 'Até 30 apartamentos (acima disso: Sob Encomenda)',
+    desc: 'Ideal para pequenos condomínios; prédios maiores têm plano personalizado.',
   },
   {
     key: 'cobranca',

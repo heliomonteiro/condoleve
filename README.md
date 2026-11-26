@@ -8,11 +8,11 @@ Plataforma SaaS web/PWA construída em **React 19 + Vite + Tailwind CSS + Supaba
 
 | Recurso | Plano Grátis (`free`) | Degustação 30 Dias (`trial`) | CondoLeve Pro (`pro` - R$ 49,90/mês) |
 | :--- | :---: | :---: | :---: |
-| **Unidades por condomínio** | Até **8 aptos** | Até 60 aptos | Até **120 aptos** |
+| **Unidades por condomínio** | Até **8 aptos** | Até 30 aptos | Até **30 aptos** (acima: sob encomenda) |
 | **Livro-caixa (Receitas/Despesas texto)** | Ilimitado | Ilimitado | Ilimitado |
 | **Recibo Digital c/ Chave Verificável** | Sim | Sim | Sim |
 | **Portal do Morador + Mural + Cartaz** | Sim | Sim | Sim |
-| **Upload de Comprovantes/Notas (WebP ~90KB)** | Bloqueado (protege Storage) | 30 arquivos/mês | **500 arquivos/mês** |
+| **Upload de Comprovantes/Notas (WebP ~90KB)** | Bloqueado (protege Storage) | 30 arquivos/mês | **300 arquivos/mês** |
 | **Leitura de Contas & Redator IA (Gemini)** | Bloqueado (protege API) | 10 créditos | **150 créditos/mês** |
 | **Inadimplência Acumulada + Cobrança 1-Clique** | Bloqueado | Liberado | **Liberado** |
 | **Prestação de Contas Oficial (PNG/Excel) + LGPD** | Visualização na tela | Exportação liberada | **Exportação liberada** |

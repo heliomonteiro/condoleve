@@ -422,7 +422,7 @@ export function CondoLeveLP({ onAcessarSistema, onCriarConta }) {
                   <span className="text-sm text-slate-400">/mês no plano anual</span>
                 </div>
                 <p className="text-xs text-slate-400 mt-1 mb-3">
-                  Ou {formatarMoeda(PLANS.pro.priceMonthly)}/mês sem fidelidade • Até 120 unidades
+                  Ou {formatarMoeda(PLANS.pro.priceMonthly)}/mês sem fidelidade • Até 30 unidades (maiores: sob encomenda)
                 </p>
                 <div className="bg-lime-500/15 border border-lime-400/30 rounded-2xl p-3.5 mb-5 text-xs text-lime-200 leading-relaxed">
                   💡 <strong className="text-white">Menos de R$ 2,00 por apartamento</strong> em um prédio de 20 unidades — e você pode lançar como despesa administrativa do próprio condomínio!
