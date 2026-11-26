@@ -22,7 +22,8 @@ Deno.serve(async (req: Request) => {
       return Response.json({ error: 'Não autenticado.' }, { status: 401, headers: corsHeaders });
     }
 
-    const asaasApiKey = Deno.env.get('ASAAS_API_KEY');
+    const asaasApiKey =
+      Deno.env.get('ASAAS_API_KEY') || Deno.env.get('ASAAS_API_KEY_SANDBOX');
     if (!asaasApiKey) {
       return Response.json(
         { error: 'Asaas ainda não configurado no servidor (ASAAS_API_KEY).' },
