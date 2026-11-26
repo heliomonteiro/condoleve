@@ -37,6 +37,7 @@ export function ModalUpgradePlano({
   const [ciclo, setCiclo] = useState('anual');
   const [cpfCnpj, setCpfCnpj] = useState('');
   const [erroCheckout, setErroCheckout] = useState('');
+  const [invoiceUrl, setInvoiceUrl] = useState('');
   const [loadingCheckout, setLoadingCheckout] = useState(false);
   const precoExibido =
     ciclo === 'anual' ? PLANS.pro.priceYearlyMonthlyEq : PLANS.pro.priceMonthly;
@@ -66,7 +67,8 @@ export function ModalUpgradePlano({
           body: { condominioId, condominioNome, ciclo, cpfCnpj: digits },
         });
         if (!error && data?.invoiceUrl) {
-          window.open(data.invoiceUrl, '_blank', 'noopener,noreferrer');
+          setInvoiceUrl(data.invoiceUrl);
+          window.location.assign(data.invoiceUrl);
           return;
         }
         const msg = await extractFunctionError(error, data);
@@ -202,6 +204,14 @@ export function ModalUpgradePlano({
                 <p className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 p-2.5 rounded-xl">
                   {erroCheckout}
                 </p>
+              )}
+              {invoiceUrl && (
+                <a
+                  href={invoiceUrl}
+                  className="block w-full text-center bg-green-600 hover:bg-green-700 text-white font-black text-xs uppercase tracking-wider py-3 px-4 rounded-xl transition"
+                >
+                  Fatura pronta! Clique aqui para abrir o pagamento →
+                </a>
               )}
             </div>
           )}
