@@ -34,11 +34,13 @@ import {
   AlertTriangle,
   Eye,
   EyeOff,
+  BookOpen,
 } from 'lucide-react';
 import { Logo } from '../../components/ui/Logo';
 import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { BotaoLetraMaior } from '../../components/ui/BotaoLetraMaior';
+import { ModalGuiaCondominio } from '../../components/legal/ModalGuiaCondominio';
 import { ModalInstalarApp } from '../../features/modals/FinanceModals';
 import { safeStr, safeNum, getMonthKey } from '../../utils/helpers';
 import { translateError } from '../../utils/errorTranslator';
@@ -76,6 +78,7 @@ export function ModoMorador({
   const [fotoChamado, setFotoChamado] = useState('');
   const [uploading, setUploading] = useState(false);
   const [verContatos, setVerContatos] = useState(false);
+  const [verGuia, setVerGuia] = useState(false);
   const [verRecibos, setVerRecibos] = useState(false);
   const [reciboExpandido, setReciboExpandido] = useState(null);
   const [modalConfig, setModalConfig] = useState(false);
@@ -332,16 +335,23 @@ export function ModoMorador({
                 '_blank'
               )
             }
-            className="flex-1 bg-white p-3 rounded-xl shadow-sm border border-slate-200 font-black text-[10px] text-slate-600 flex items-center justify-center gap-2 hover:bg-slate-50 transition active:scale-95 uppercase tracking-widest"
+            className="flex-1 min-h-[46px] bg-white p-3 rounded-xl shadow-sm border border-slate-200 font-black text-[10px] text-slate-600 flex items-center justify-center gap-1.5 hover:bg-slate-50 transition active:scale-95 uppercase tracking-wider"
           >
             <Phone size={14} className="text-slate-400" /> Síndico
           </button>
           <button
             type="button"
             onClick={() => setVerContatos(true)}
-            className="flex-1 bg-white p-3 rounded-xl shadow-sm border border-slate-200 font-black text-[10px] text-slate-600 flex items-center justify-center gap-2 hover:bg-slate-50 transition active:scale-95 uppercase tracking-widest"
+            className="flex-1 min-h-[46px] bg-white p-3 rounded-xl shadow-sm border border-slate-200 font-black text-[10px] text-slate-600 flex items-center justify-center gap-1.5 hover:bg-slate-50 transition active:scale-95 uppercase tracking-wider"
           >
             <Contact size={14} className="text-teal-500" /> Contatos
+          </button>
+          <button
+            type="button"
+            onClick={() => setVerGuia(true)}
+            className="flex-1 min-h-[46px] bg-white p-3 rounded-xl shadow-sm border border-slate-200 font-black text-[10px] text-slate-600 flex items-center justify-center gap-1.5 hover:bg-slate-50 transition active:scale-95 uppercase tracking-wider"
+          >
+            <BookOpen size={14} className="text-[#65a30d]" /> Regras
           </button>
         </div>
 
@@ -839,6 +849,7 @@ export function ModoMorador({
         />
       )}
       {modalInstalar && <ModalInstalarApp onClose={() => setModalInstalar(false)} />}
+      {verGuia && <ModalGuiaCondominio onClose={() => setVerGuia(false)} />}
     </div>
   );
 }

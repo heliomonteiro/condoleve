@@ -39,12 +39,14 @@ import {
   Lock,
   ShieldCheck,
   Sparkles,
+  BookOpen,
 } from 'lucide-react';
 import { Logo } from '../../components/ui/Logo';
 import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { NavBtn } from '../../components/ui/NavBtn';
 import { BotaoLetraMaior } from '../../components/ui/BotaoLetraMaior';
+import { ModalGuiaCondominio } from '../../components/legal/ModalGuiaCondominio';
 import { ModoMorador } from '../Resident/ModoMorador';
 import { ModalUpgradePlano } from '../../components/billing/ModalUpgradePlano';
 import {
@@ -142,6 +144,7 @@ export function SistemaCondominio({ supabase, session, contexto, onSwitch, showT
   const [modalEditar, setModalEditar] = useState(null);
   const [modalNovaUnidade, setModalNovaUnidade] = useState(false);
   const [modalAuditoria, setModalAuditoria] = useState(false);
+  const [modalGuia, setModalGuia] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
   const [modalConfig, setModalConfig] = useState(false);
@@ -1830,6 +1833,19 @@ export function SistemaCondominio({ supabase, session, contexto, onSwitch, showT
                   Auditoria
                 </span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setModalGuia(true)}
+                className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 hover:shadow-md transition active:scale-95 group"
+              >
+                <div className="bg-lime-50 text-lime-700 p-4 rounded-2xl group-hover:bg-lime-100 transition">
+                  <BookOpen size={24} />
+                </div>
+                <span className="font-black text-slate-700 text-[10px] uppercase tracking-widest text-center">
+                  Guia &amp; Leis
+                </span>
+              </button>
             </div>
           </div>
         )}
@@ -2156,6 +2172,8 @@ export function SistemaCondominio({ supabase, session, contexto, onSwitch, showT
           onClose={() => setModalAuditoria(false)}
         />
       )}
+
+      {modalGuia && <ModalGuiaCondominio onClose={() => setModalGuia(false)} />}
     </div>
   );
 }
