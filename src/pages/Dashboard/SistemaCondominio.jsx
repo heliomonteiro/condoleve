@@ -2059,6 +2059,9 @@ export function SistemaCondominio({
           showToast={showToast}
           exportarBackup={exportarBackup}
           supabase={supabase}
+          condominioId={cId}
+          currentUserId={session.user.id}
+          onSwitchContexto={onSwitch}
           subscription={subscription}
           onRequestUpgrade={solicitarUpgrade}
           unidadesCount={unidades.length}

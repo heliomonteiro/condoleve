@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Link as LinkIcon,
@@ -772,6 +772,9 @@ export function ModalConfiguracoes({
   showToast,
   exportarBackup,
   supabase,
+  condominioId,
+  currentUserId,
+  onSwitchContexto,
   subscription,
   onRequestUpgrade,
   unidadesCount = 0,
@@ -783,8 +786,81 @@ export function ModalConfiguracoes({
   const [novaSenha, setNovaSenha] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [loadingSenha, setLoadingSenha] = useState(false);
+  const [membrosSucessao, setMembrosSucessao] = useState([]);
+  const [loadingMembros, setLoadingMembros] = useState(false);
+  const [novoSindicoId, setNovoSindicoId] = useState('');
+  const [transferindo, setTransferindo] = useState(false);
 
   const allowBackup = canUseFeature(subscription, 'backup');
+
+  useEffect(() => {
+    if (activeTab !== 'sistema' || !condominioId) return;
+    let active = true;
+    const carregarMembros = async () => {
+      setLoadingMembros(true);
+      try {
+        const [{ data: vincs }, { data: convs }] = await Promise.all([
+          supabase
+            .from('vinculos')
+            .select('id, user_id, role, unidades(numero, proprietario, inquilino)')
+            .eq('condominio_id', condominioId)
+            .neq('user_id', currentUserId),
+          supabase
+            .from('convites')
+            .select('user_id, email')
+            .eq('condominio_id', condominioId)
+            .eq('status', 'aprovado'),
+        ]);
+
+        if (!active) return;
+        const emailMap = new Map((convs || []).map((c) => [c.user_id, c.email]));
+        const uniqueMap = new Map();
+        (vincs || []).forEach((v) => {
+          if (!uniqueMap.has(v.user_id)) {
+            const apto = v.unidades?.numero ? `Apto ${v.unidades.numero}` : 'Sem unidade';
+            const nome =
+              v.unidades?.proprietario?.nome || v.unidades?.inquilino?.nome || '';
+            const email = emailMap.get(v.user_id) || '';
+            const labelParts = [apto, nome, email ? `(${email})` : ''].filter(Boolean);
+            uniqueMap.set(v.user_id, {
+              userId: v.user_id,
+              role: v.role,
+              label: `${labelParts.join(' — ')} [${v.role}]`,
+            });
+          }
+        });
+        const lista = Array.from(uniqueMap.values());
+        setMembrosSucessao(lista);
+        if (lista[0]) setNovoSindicoId(lista[0].userId);
+      } catch {
+        if (active) setMembrosSucessao([]);
+      } finally {
+        if (active) setLoadingMembros(false);
+      }
+    };
+    carregarMembros();
+    return () => {
+      active = false;
+    };
+  }, [activeTab, condominioId, currentUserId, supabase]);
+
+  const executarTransferenciaSindico = async (targetUserId) => {
+    setTransferindo(true);
+    try {
+      const { error } = await supabase.rpc('transferir_sindico_condominio', {
+        p_condominio_id: condominioId,
+        p_novo_sindico_user_id: targetUserId,
+      });
+      if (error) throw error;
+      showToast('Administração transferida com sucesso para o novo síndico!');
+      onClose();
+      onSwitchContexto?.();
+    } catch (err) {
+      showToast(translateError(err), 'error');
+    } finally {
+      setTransferindo(false);
+    }
+  };
 
   const alterarSenha = async () => {
     if (novaSenha.length < 6) {
@@ -1041,6 +1117,57 @@ export function ModalConfiguracoes({
                 >
                   {allowBackup ? <Download size={14} /> : <Lock size={14} />} EXPORTAR BACKUP
                 </button>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl text-left">
+                <h4 className="text-amber-900 font-black text-sm mb-1.5 flex items-center gap-2">
+                  <Crown size={16} className="text-amber-600" /> Transferir Administração (Sucessão de Síndico)
+                </h4>
+                <p className="text-xs text-amber-800 mb-3 font-medium leading-relaxed">
+                  Mudou o síndico na assembleia? Passe o controle do prédio para o novo síndico mantendo todo o histórico financeiro intacto. Você passará a acessar como morador/conselheiro.
+                </p>
+
+                {loadingMembros ? (
+                  <div className="py-3 flex justify-center">
+                    <RefreshCw className="animate-spin text-amber-600" size={18} />
+                  </div>
+                ) : membrosSucessao.length > 0 ? (
+                  <div className="space-y-2.5">
+                    <select
+                      value={novoSindicoId}
+                      onChange={(e) => setNovoSindicoId(e.target.value)}
+                      className="w-full border border-amber-200 bg-white p-3 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
+                    >
+                      {membrosSucessao.map((m) => (
+                        <option key={m.userId} value={m.userId}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={!novoSindicoId || transferindo}
+                      onClick={() => {
+                        const selecionado = membrosSucessao.find((m) => m.userId === novoSindicoId);
+                        triggerConfirm({
+                          titulo: 'Transferir Síndico?',
+                          texto: `Você está passando a administração do condomínio para: ${selecionado?.label}. Após confirmar, você perderá os poderes de síndico.`,
+                          onConfirm: () => {
+                            triggerConfirm(null);
+                            executarTransferenciaSindico(novoSindicoId);
+                          },
+                        });
+                      }}
+                      className="w-full min-h-[44px] bg-amber-600 text-white py-3 rounded-xl font-black text-xs hover:bg-amber-700 transition shadow-md disabled:opacity-50"
+                    >
+                      {transferindo ? 'TRANSFERINDO...' : 'TRANSFERIR CARGO DE SÍNDICO'}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[11px] font-bold text-amber-700 bg-white/70 p-3 rounded-xl border border-amber-200">
+                    Para transferir, o novo síndico precisa primeiro entrar no prédio pelo link de convite e ser aprovado em Moradores.
+                  </p>
+                )}
               </div>
 
               <div className="pt-6 mt-6 border-t border-slate-100 text-center">
