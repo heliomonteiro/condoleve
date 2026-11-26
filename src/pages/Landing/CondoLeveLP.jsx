@@ -19,6 +19,7 @@ import { Logo } from '../../components/ui/Logo';
 
 export function CondoLeveLP({ onAcessarSistema, onCriarConta }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [modalLegal, setModalLegal] = useState(false);
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
   const abrirWhatsAppComercial = () => {
@@ -440,7 +441,7 @@ export function CondoLeveLP({ onAcessarSistema, onCriarConta }) {
                 </ul>
                 <button
                   type="button"
-                  onClick={() => window.open(getCheckoutLink('Novo Condomínio', 'landing', 'anual'), '_blank', 'noopener,noreferrer')}
+                  onClick={onCriarConta}
                   className="w-full bg-lime-500 text-slate-900 py-3.5 rounded-xl font-black text-sm hover:bg-lime-400 transition"
                 >
                   TESTAR 30 DIAS GRÁTIS
@@ -600,8 +601,15 @@ export function CondoLeveLP({ onAcessarSistema, onCriarConta }) {
               Condo<span className="text-lime-600">Leve</span>
             </span>
           </div>
-          <div className="text-slate-500 text-sm text-center">
-            © {new Date().getFullYear()} CondoLeve Gestão Simplificada. Todos os direitos reservados.
+          <div className="text-slate-500 text-sm text-center flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
+            <span>© {new Date().getFullYear()} CondoLeve Gestão Simplificada. Todos os direitos reservados.</span>
+            <button
+              type="button"
+              onClick={() => setModalLegal(true)}
+              className="text-slate-600 hover:text-lime-600 font-semibold underline"
+            >
+              Termos & Privacidade (LGPD)
+            </button>
           </div>
           <button
             type="button"
@@ -612,6 +620,49 @@ export function CondoLeveLP({ onAcessarSistema, onCriarConta }) {
           </button>
         </div>
       </footer>
+
+      {modalLegal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Termos de Uso e Privacidade"
+          className="fixed inset-0 bg-slate-900/75 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+        >
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-lg font-black text-slate-900">
+                Termos de Uso & Privacidade (LGPD)
+              </h3>
+              <button
+                type="button"
+                onClick={() => setModalLegal(false)}
+                aria-label="Fechar"
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-500"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-3 text-sm text-slate-600 leading-relaxed">
+              <p>
+                <strong className="text-slate-900">1. Propriedade dos Dados:</strong> Todos os lançamentos, comprovantes e cadastros pertencem ao condomínio. Você pode exportar seu histórico em JSON/CSV ou cancelar quando quiser sem multas.
+              </p>
+              <p>
+                <strong className="text-slate-900">2. Privacidade & LGPD:</strong> Cada morador acessa apenas suas próprias faturas e recibos. Os demonstrativos públicos ocultam nomes de unidades inadimplentes por padrão para evitar exposição indevida.
+              </p>
+              <p>
+                <strong className="text-slate-900">3. Segurança & Pagamentos:</strong> Os dados trafegam criptografados (HTTPS) com isolamento por condomínio no banco de dados. Assinaturas do CondoLeve Pro são processadas com segurança pelo Asaas.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setModalLegal(false)}
+              className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-sm hover:bg-slate-800 transition"
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
