@@ -41,6 +41,7 @@ Deno.serve(async (req: Request) => {
             plano: 'pro',
             status: 'ativo',
             gateway_subscription_id: payment?.subscription || null,
+            ultima_fatura_url: payment?.transactionReceiptUrl || payment?.invoiceUrl || null,
             atualizado_em: new Date().toISOString(),
           },
           { onConflict: 'condominio_id' }

@@ -77,7 +77,41 @@ Deno.serve(async (req: Request) => {
       access_token: asaasApiKey,
     };
 
-    // 1. Cria cliente no Asaas
+    // 1. Verifica se já existe assinatura pendente com o mesmo valor para evitar cobrança duplicada
+    const isAnual = ciclo === 'anual';
+    const targetValue = isAnual ? 298.8 : 29.9;
+
+    const { data: assinaturaAtual } = await adminClient
+      .from('assinaturas_condominio')
+      .select('gateway_subscription_id')
+      .eq('condominio_id', condominioId)
+      .maybeSingle();
+
+    if (assinaturaAtual?.gateway_subscription_id) {
+      const existingPaymentsRes = await fetch(
+        `${baseUrl}/subscriptions/${assinaturaAtual.gateway_subscription_id}/payments`,
+        { headers: headersAsaas }
+      );
+      if (existingPaymentsRes.ok) {
+        const existingPaymentsData = await existingPaymentsRes.json();
+        const pendingSameValue = (existingPaymentsData?.data || []).find(
+          (p: { status?: string; value?: number; invoiceUrl?: string }) =>
+            p.status === 'PENDING' && Number(p.value) === targetValue && p.invoiceUrl
+        );
+        if (pendingSameValue?.invoiceUrl) {
+          return Response.json(
+            {
+              subscriptionId: assinaturaAtual.gateway_subscription_id,
+              invoiceUrl: pendingSameValue.invoiceUrl,
+              reused: true,
+            },
+            { headers: corsHeaders }
+          );
+        }
+      }
+    }
+
+    // 2. Cria cliente no Asaas
     const customerRes = await fetch(`${baseUrl}/customers`, {
       method: 'POST',
       headers: headersAsaas,
@@ -96,8 +130,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 2. Cria assinatura recorrente (R$ 29,90 mensal lançamento ou R$ 298,80 anual = R$ 24,90/mês)
-    const isAnual = ciclo === 'anual';
+    // 3. Cria assinatura recorrente (R$ 29,90 mensal lançamento ou R$ 298,80 anual = R$ 24,90/mês)
     const nextDueDate = new Date().toISOString().split('T')[0];
 
     const subRes = await fetch(`${baseUrl}/subscriptions`, {
@@ -106,7 +139,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         customer: customerData.id,
         billingType: 'UNDEFINED', // Permite ao síndico escolher PIX, Boleto ou Cartão na tela do Asaas
-        value: isAnual ? 298.8 : 29.9,
+        value: targetValue,
         nextDueDate,
         cycle: isAnual ? 'YEARLY' : 'MONTHLY',
         description: `CondoLeve Pro (${isAnual ? 'Anual' : 'Mensal'}) - ${condominioNome || 'Condomínio'}`,
@@ -121,7 +154,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 3. Salva IDs no banco
+    // 4. Busca o link da primeira cobrança gerada e salva IDs + URL no banco
+    const paymentsRes = await fetch(`${baseUrl}/subscriptions/${subData.id}/payments`, {
+      headers: headersAsaas,
+    });
+    const paymentsData = await paymentsRes.json();
+    const invoiceUrl = paymentsData?.data?.[0]?.invoiceUrl || null;
+
     await adminClient
       .from('assinaturas_condominio')
       .upsert(
@@ -129,17 +168,11 @@ Deno.serve(async (req: Request) => {
           condominio_id: condominioId,
           gateway_customer_id: customerData.id,
           gateway_subscription_id: subData.id,
+          ultima_fatura_url: invoiceUrl,
           atualizado_em: new Date().toISOString(),
         },
         { onConflict: 'condominio_id' }
       );
-
-    // 4. Busca o link da primeira cobrança gerada para abrir imediatamente
-    const paymentsRes = await fetch(`${baseUrl}/subscriptions/${subData.id}/payments`, {
-      headers: headersAsaas,
-    });
-    const paymentsData = await paymentsRes.json();
-    const invoiceUrl = paymentsData?.data?.[0]?.invoiceUrl || null;
 
     return Response.json(
       {

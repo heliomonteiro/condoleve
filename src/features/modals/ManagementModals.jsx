@@ -1142,6 +1142,27 @@ export function ModalConfiguracoes({
                   </p>
                 </div>
               </div>
+
+              {subscription.ultimaFaturaUrl && (
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black text-slate-800">
+                      Fatura e Comprovante de Pagamento (Asaas)
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Use este comprovante oficial para anexar na prestação de contas do prédio.
+                    </p>
+                  </div>
+                  <a
+                    href={subscription.ultimaFaturaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-center shrink-0 transition"
+                  >
+                    Abrir Comprovante →
+                  </a>
+                </div>
+              )}
             </div>
           )}
 
