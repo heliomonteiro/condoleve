@@ -11,7 +11,7 @@ import {
 } from '../../utils/helpers';
 import { X, PlusCircle, RefreshCw, PartyPopper, Activity, Sparkles } from 'lucide-react';
 
-export function SetupWizard({ onComplete }) {
+export function SetupWizard({ onComplete, onCancel = null }) {
   const { session, showToast } = useAuth();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
@@ -144,8 +144,17 @@ export function SetupWizard({ onComplete }) {
   return (
     <div className="fixed inset-0 bg-white z-[10010] flex flex-col p-8 font-sans text-left overflow-y-auto">
       <div className="max-w-md mx-auto w-full">
-        <div className="mb-8">
+        <div className="mb-8 flex items-center justify-between gap-4">
           <Logo variant="simple" width="w-48" />
+          {onCancel && step < 4 && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="text-xs font-black text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3.5 py-2 rounded-xl transition shrink-0"
+            >
+              Cancelar
+            </button>
+          )}
         </div>
 
         {step < 4 && (

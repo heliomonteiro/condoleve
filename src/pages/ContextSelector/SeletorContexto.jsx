@@ -147,7 +147,12 @@ export function SeletorContexto({ skipAutoSelect = false }) {
   }
 
   if (showWizard) {
-    return <SetupWizard onComplete={(v) => setContexto(v)} />;
+    return (
+      <SetupWizard
+        onComplete={(v) => setContexto(v)}
+        onCancel={vinculos.length > 0 ? () => setShowWizard(false) : null}
+      />
+    );
   }
 
   return (
