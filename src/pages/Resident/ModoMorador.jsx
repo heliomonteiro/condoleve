@@ -73,6 +73,7 @@ export function ModoMorador({
   unidadesTotal,
   taxaVigenteMes,
   rateiosExtras = [],
+  isSimulacao = false,
 }) {
   const [activeTab, setActiveTab] = useState('mural');
   const [historyMode, setHistoryMode] = useState(false);
@@ -203,6 +204,18 @@ export function ModoMorador({
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] font-sans text-slate-800">
+      {isSimulacao && (
+        <div className="bg-amber-400 text-slate-950 px-4 py-2 text-xs font-black flex items-center justify-center gap-3 sticky top-0 z-50 shadow-sm">
+          <span>Visualizando como morador (Apto {unidade.numero})</span>
+          <button
+            type="button"
+            onClick={onExit}
+            className="bg-slate-900 text-white px-3 py-1 rounded-lg text-[10px] uppercase tracking-wider hover:bg-slate-800 transition"
+          >
+            Voltar para Gestão
+          </button>
+        </div>
+      )}
       {avisoUrgente && !historyMode && (
         <div className="bg-red-600 text-white p-3 sticky top-0 z-50 flex gap-3 items-center shadow-md animate-in slide-in-from-top">
           <AlertOctagon size={20} className="shrink-0 animate-pulse" />

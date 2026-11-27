@@ -935,7 +935,7 @@ export function SistemaCondominio({
   // MODO IMPRESSÃO DE CARTAZ
   if (printMode === 'cartaz') {
     return (
-      <div className="bg-white min-h-screen p-10 font-sans z-[10000] relative">
+      <div className="bg-white min-h-screen p-6 sm:p-10 pb-24 font-sans z-[10000] relative">
         <div className="text-center mb-10 border-b-4 border-[#1e293b] pb-6">
           <h1 className="text-5xl font-black text-[#1e293b] uppercase tracking-tighter mb-2">
             Informações Úteis
@@ -983,6 +983,7 @@ export function SistemaCondominio({
           unidade={unidadeMorador}
           condominioId={cId}
           config={config}
+          isSimulacao={isGestorOuConselho}
           onExit={() => {
             if (isGestorOuConselho) {
               setModoMorador(false);
